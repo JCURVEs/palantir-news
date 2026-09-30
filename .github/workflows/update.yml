@@ -31,7 +31,7 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: ${{ vars.GROQ_MODEL || 'qwen/qwen3.8-27b' }}
-        run: palantir-news --start-year 2020 --end-year 2026 --analysis-limit "${{ inputs.analysis_limit || '10' }}"
+        run: palantir-news --start-year 2020 --end-year 2026 --analysis-limit "${{ inputs.analysis_limit || '8' }}"
       - name: Commit updates
         run: |
           git config user.name "github-actions[bot]"
@@ -44,4 +44,3 @@ jobs:
             git commit -m "docs: update Palantir news archive"
             git push
           fi
-
