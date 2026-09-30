@@ -1,0 +1,46 @@
+name: Update Palantir News
+
+on:
+  schedule:
+    # GitHub cron 지연을 고려해 한국 시간 오전 4시 30분부터 8시 30분까지 확인
+    - cron: '30 19-23 * * *'
+  workflow_dispatch:
+    inputs:
+      analysis_limit:
+        description: 'Maximum pending articles to analyze (0 = all)'
+        required: false
+        default: '10'
+
+concurrency:
+  group: palantir-news-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -e .
+      - name: Collect and analyze
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'qwen/qwen3.8-27b' }}
+        run: palantir-news --start-year 2020 --end-year 2026 --analysis-limit "${{ inputs.analysis_limit || '10' }}"
+      - name: Commit updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add archive data
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "docs: update Palantir news archive"
+            git push
+          fi
+

@@ -1,0 +1,2 @@
+[console_scripts]
+palantir-news = palantir_news.cli:main

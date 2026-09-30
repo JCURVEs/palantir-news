@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "palantir-news"
+version = "0.1.0"
+description = "A source-grounded Korean archive of the official Palantir Blog"
+requires-python = ">=3.10"
+dependencies = [
+  "beautifulsoup4>=4.12.0",
+  "openai>=1.0.0",
+  "python-dateutil>=2.8.0",
+  "requests>=2.31.0",
+]
+
+[project.scripts]
+palantir-news = "palantir_news.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
