@@ -1,5 +1,6 @@
 from palantir_news.collector import (
     article_id_from_url,
+    fetch_reader_text,
     normalize_url,
     parse_article_html,
     parse_medium_json,
@@ -55,3 +56,23 @@ def test_parse_medium_json_uses_first_publication_timestamp():
     assert article["modified_at"] == "2025-01-01T00:00:00Z"
     assert article["description"] == "A subtitle"
     assert article["body"] == "First Second"
+
+
+def test_reader_fallback_uses_canonical_source_url():
+    class FakeResponse:
+        text = "Palantir article content " * 20
+
+        def raise_for_status(self):
+            return None
+
+    class FakeSession:
+        def get(self, url, timeout):
+            assert url == "https://r.jina.ai/https://blog.palantir.com/example-abcdef123456"
+            assert timeout == 60
+            return FakeResponse()
+
+    text = fetch_reader_text(
+        "https://blog.palantir.com/example-abcdef123456?source=rss",
+        FakeSession(),
+    )
+    assert text.startswith("Palantir article content")

@@ -173,6 +173,17 @@ def fetch_article(url: str, session: requests.Session | None = None) -> dict[str
     return parse_article_html(url, response.text)
 
 
+def fetch_reader_text(url: str, session: requests.Session | None = None) -> str:
+    """Read a public article through Jina Reader when Medium blocks CI runners."""
+    client = session or build_session()
+    response = client.get(f"https://r.jina.ai/{normalize_url(url)}", timeout=60)
+    response.raise_for_status()
+    text = _clean_text(response.text)
+    if len(text) < 200:
+        raise ValueError(f"Reader returned insufficient content: {url}")
+    return text
+
+
 def publication_year(article: dict[str, Any]) -> int:
     """Return the article's actual publication year."""
     return datetime.fromisoformat(article["published_at"].replace("Z", "+00:00")).year

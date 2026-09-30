@@ -11,7 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from .archive import rebuild_archives
-from .collector import article_id_from_url, build_session, fetch_article, fetch_sitemap, publication_year
+from .collector import (
+    article_id_from_url,
+    build_session,
+    fetch_article,
+    fetch_reader_text,
+    fetch_sitemap,
+    publication_year,
+)
 from .summarizer import summarize
 
 
@@ -132,7 +139,10 @@ def main() -> int:
         for number, article in enumerate(pending, start=1):
             try:
                 if not article.get("body"):
-                    article["body"] = fetch_article(article["url"], build_session())["body"]
+                    try:
+                        article["body"] = fetch_article(article["url"], build_session())["body"]
+                    except Exception:
+                        article["body"] = fetch_reader_text(article["url"], build_session())
                 article["analysis"] = summarize(article, api_key=key)
                 article["analysis_status"] = "complete"
                 article.pop("analysis_error", None)
