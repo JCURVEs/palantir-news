@@ -29,7 +29,12 @@ def load_index(path: Path) -> dict[str, dict[str, Any]]:
 def save_index(path: Path, records: dict[str, dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     ordered = sorted(records.values(), key=lambda item: (item["published_at"], item["id"]))
-    text = "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in ordered)
+    public_records = []
+    for item in ordered:
+        public_item = dict(item)
+        public_item.pop("body", None)
+        public_records.append(public_item)
+    text = "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in public_records)
     path.write_text(text, encoding="utf-8")
 
 
@@ -126,12 +131,15 @@ def main() -> int:
     if not args.collect_only and key:
         for number, article in enumerate(pending, start=1):
             try:
+                if not article.get("body"):
+                    article["body"] = fetch_article(article["url"], build_session())["body"]
                 article["analysis"] = summarize(article, api_key=key)
                 article["analysis_status"] = "complete"
                 article.pop("analysis_error", None)
             except Exception as exc:
                 article["analysis_status"] = "failed"
                 article["analysis_error"] = f"{type(exc).__name__}: {exc}"
+            article.pop("body", None)
             save_index(index_path, records)
             print(f"Analyzed {number}/{len(pending)}: {article['title']}")
     elif not args.collect_only and pending:

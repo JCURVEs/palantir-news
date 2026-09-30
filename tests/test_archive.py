@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from palantir_news.archive import archive_path, rebuild_archives
-from palantir_news.cli import write_catalog
+from palantir_news.cli import load_index, save_index, write_catalog
 
 
 def sample_article():
@@ -43,3 +43,12 @@ def test_write_catalog_groups_articles_by_year(tmp_path):
     assert "Official posts indexed: **1**" in content
     assert "## 2021 (1)" in content
     assert "[Example Post](https://blog.palantir.com/example-abcdef123456)" in content
+
+
+def test_index_does_not_persist_full_article_body(tmp_path):
+    article = sample_article()
+    article["body"] = "Copyrighted source text"
+    path = tmp_path / "articles.jsonl"
+    save_index(path, {article["id"]: article})
+    assert "Copyrighted source text" not in path.read_text(encoding="utf-8")
+    assert "body" not in load_index(path)[article["id"]]
