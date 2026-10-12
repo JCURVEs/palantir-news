@@ -50,7 +50,7 @@ def summarize(article: dict[str, Any], api_key: str | None = None, model: str | 
     key = api_key or os.getenv("GROQ_API_KEY")
     if not key:
         raise RuntimeError("GROQ_API_KEY is not configured")
-    client = OpenAI(api_key=key, base_url="https://api.groq.com/openai/v1")
+    client = OpenAI(api_key=key, base_url="https://api.groq.com/openai/v1", max_retries=0)
     response = client.chat.completions.create(
         model=model or os.getenv("GROQ_MODEL", DEFAULT_MODEL),
         messages=[{"role": "user", "content": build_prompt(article)}],
@@ -64,4 +64,3 @@ def summarize(article: dict[str, Any], api_key: str | None = None, model: str | 
         raise ValueError(f"Incomplete analysis response: {required - set(result)}")
     result["importance"] = max(1, min(10, int(result["importance"])))
     return result
-

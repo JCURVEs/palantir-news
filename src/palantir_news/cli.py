@@ -5,10 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
+
+from openai import RateLimitError
 
 from .archive import rebuild_archives
 from .collector import (
@@ -88,12 +91,72 @@ def collect_missing(urls: list[str], existing: dict[str, dict[str, Any]], worker
     return collected, failures
 
 
+def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    pending = [item for item in records.values() if item.get("analysis_status") != "complete"]
+    pending.sort(key=lambda item: (item.get("analysis_status") == "failed", item["published_at"]))
+    return pending[:limit] if limit > 0 else pending
+
+
+def summarize_with_rate_limit_retry(article: dict[str, Any], api_key: str) -> dict[str, Any]:
+    for attempt in range(3):
+        try:
+            return summarize(article, api_key=api_key)
+        except RateLimitError as exc:
+            if attempt == 2:
+                raise
+            try:
+                wait_seconds = float(exc.response.headers.get("retry-after", ""))
+            except (TypeError, ValueError):
+                wait_seconds = 30.0 * (attempt + 1)
+            if wait_seconds > 90:
+                raise
+            time.sleep(max(1.0, wait_seconds) + 1.0)
+    raise RuntimeError("Unreachable rate-limit retry state")
+
+
+def analyze_pending(
+    pending: list[dict[str, Any]],
+    records: dict[str, dict[str, Any]],
+    index_path: Path,
+    api_key: str,
+    pause_seconds: float,
+) -> None:
+    for number, article in enumerate(pending, start=1):
+        if number > 1 and pause_seconds > 0:
+            time.sleep(pause_seconds)
+        rate_limited = False
+        try:
+            if not article.get("body"):
+                try:
+                    article["body"] = fetch_article(article["url"], build_session())["body"]
+                except Exception:
+                    article["body"] = fetch_reader_text(article["url"], build_session())
+            article["analysis"] = summarize_with_rate_limit_retry(article, api_key)
+            article["analysis_status"] = "complete"
+            article.pop("analysis_error", None)
+        except RateLimitError:
+            article["analysis_status"] = "pending"
+            article.pop("analysis_error", None)
+            rate_limited = True
+        except Exception as exc:
+            article["analysis_status"] = "failed"
+            article["analysis_error"] = f"{type(exc).__name__}: {exc}"
+        finally:
+            article.pop("body", None)
+            save_index(index_path, records)
+        if rate_limited:
+            print(f"::warning::Groq rate limit reached after {number - 1} articles; remaining posts will retry on the next run")
+            break
+        print(f"Analyzed {number}/{len(pending)} ({article['analysis_status']}): {article['title']}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Archive the official Palantir Blog in Korean")
     parser.add_argument("--start-year", type=int, default=2020)
     parser.add_argument("--end-year", type=int, default=2026)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--analysis-limit", type=int, default=0, help="Maximum pending posts to analyze; 0 means all")
+    parser.add_argument("--analysis-pause-seconds", type=float, default=0, help="Pause between analysis requests")
     parser.add_argument("--collect-only", action="store_true")
     parser.add_argument("--refresh", action="store_true", help="Refetch already indexed article pages")
     return parser.parse_args()
@@ -129,29 +192,11 @@ def main() -> int:
     failure_path.write_text("\n".join(failures) + ("\n" if failures else ""), encoding="utf-8")
     write_catalog(root / "CATALOG.md", records)
 
-    pending = [item for item in records.values() if item.get("analysis_status") != "complete"]
-    pending.sort(key=lambda item: item["published_at"])
-    if args.analysis_limit > 0:
-        pending = pending[: args.analysis_limit]
+    pending = select_pending(records, args.analysis_limit)
 
     key = os.getenv("GROQ_API_KEY")
     if not args.collect_only and key:
-        for number, article in enumerate(pending, start=1):
-            try:
-                if not article.get("body"):
-                    try:
-                        article["body"] = fetch_article(article["url"], build_session())["body"]
-                    except Exception:
-                        article["body"] = fetch_reader_text(article["url"], build_session())
-                article["analysis"] = summarize(article, api_key=key)
-                article["analysis_status"] = "complete"
-                article.pop("analysis_error", None)
-            except Exception as exc:
-                article["analysis_status"] = "failed"
-                article["analysis_error"] = f"{type(exc).__name__}: {exc}"
-            article.pop("body", None)
-            save_index(index_path, records)
-            print(f"Analyzed {number}/{len(pending)}: {article['title']}")
+        analyze_pending(pending, records, index_path, key, args.analysis_pause_seconds)
     elif not args.collect_only and pending:
         print(f"GROQ_API_KEY is not configured; {len(pending)} articles remain pending")
 
