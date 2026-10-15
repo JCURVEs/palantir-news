@@ -1,42 +1,31 @@
 # Palantir News
 
-Palantir 공식 블로그의 글을 수집해 한국어로 정리하는 아카이브입니다.
+**팔란티어의 기술을 업무의 언어로 읽습니다.**
 
-- 대상: `https://blog.palantir.com/`
-- 기간: 2020~2026년
-- 구조: `archive/{연도}/{월}/{발행일}.md`
-- 원본 인덱스: `data/articles.jsonl`
-- 요약 항목: 한국어 제목, 요약, 쉬운 설명, 분야, 중요도
+Palantir News는 팔란티어의 공식 발표와 엔지니어링 글에서 기술의 작동 방식과 현장 사례를 골라 한국어로 전하는 독립 큐레이터 채널입니다. 제품 이름만 나열하기보다, 어떤 문제를 풀려고 만들었고 실제 업무에서 어떻게 쓰이는지 살펴봅니다.
 
-## 수집 현황
+![도시와 물류 현장을 잇는 데이터 흐름을 표현한 Palantir News 커버](assets/palantir-news-cover.png)
 
-2026년 9월 30일 기준 공식 사이트맵과 실제 최초 발행일을 대조해 287개 글을 확보했습니다.
+## 골라 읽는 기술 이야기
 
-| 연도 | 글 수 |
-|---:|---:|
-| 2020 | 8 |
-| 2021 | 44 |
-| 2022 | 88 |
-| 2023 | 49 |
-| 2024 | 39 |
-| 2025 | 36 |
-| 2026 | 23 |
+- [데이터 접근 권한에 '왜'를 남기는 방법](archive/2020/12월/2020-12-04.md) ([영문 원문](https://blog.palantir.com/purpose-based-access-controls-at-palantir-f419faa400b3)): 목적 기반 접근 제어가 권한 신청과 승인 사유를 어떻게 연결하는지 살펴봅니다.
+- [Foundry가 설비 데이터를 운영 판단으로 잇는 과정](archive/2022/03월/2022-03-22.md) ([영문 원문](https://blog.palantir.com/how-palantir-foundry-powers-bps-digital-transformation-in-reliability-4c644e36b6fc)): bp 사례를 통해 분산된 엔지니어링·유지보수 데이터를 한데 보는 이유를 읽습니다.
+- [AI 모델이 실험실을 떠나 현장에 가려면](archive/2023/06월/2023-06-09.md) ([영문 원문](https://blog.palantir.com/making-ai-and-ml-operational-the-modeling-objective-b4024897a766)): 모델링 목표가 AI 모델과 실제 운영 문제를 연결하는 역할을 알아봅니다.
 
-전체 원문 목록은 [`CATALOG.md`](CATALOG.md)에서 확인할 수 있습니다.
+각 한국어 글에는 핵심 요약과 쉬운 설명이 있습니다. 세부 기술과 발표 사실은 함께 표시한 원문에서 확인할 수 있습니다.
 
-## 실행
+## 주목하는 분야
 
-```bash
-python -m venv .venv
-pip install -e .
-palantir-news --start-year 2020 --end-year 2026
-```
+- **AIP와 AI 에이전트**: AI가 답변을 생성하는 단계를 넘어, 업무 흐름 안에서 안전하게 판단하고 행동하는 방식
+- **온톨로지**: 데이터, 업무 규칙, 실행과 권한을 연결해 조직의 현실을 표현하는 설계
+- **플랫폼 엔지니어링**: 대규모 데이터 처리와 검색, 보안, 관측성을 실제 서비스에서 다루는 방법
+- **현장 적용**: 제조, 공급망, 공공 영역에서 기술이 구체적인 운영 문제를 만나는 장면
 
-한국어 분석에는 `GROQ_API_KEY`가 필요합니다. 키가 없으면 원문 메타데이터와 본문을 먼저 수집하고 분석 상태를 `pending`으로 보존합니다.
+## 더 찾아보기
 
-```bash
-palantir-news --start-year 2020 --end-year 2026 --collect-only
-palantir-news --start-year 2020 --end-year 2026 --analysis-limit 10
-```
+- [한국어로 정리된 글](archive/): 날짜별 요약과 쉬운 설명
+- [전체 원문 목록](CATALOG.md): 발행일과 원문 링크. 한국어 분석 대기 중인 글도 포함됩니다.
 
-GitHub Actions는 새 글과 미분석 글을 확인하며, 완료된 글은 다시 분석하지 않습니다.
+---
+
+*Palantir News는 Palantir Technologies의 공식 채널이 아닙니다. 기술 내용과 발표 사실은 [Palantir 공식 블로그](https://blog.palantir.com/)의 원문을 기준으로 확인해 주세요. 커버 이미지는 이 채널을 위해 제작한 일러스트입니다.*
