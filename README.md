@@ -4,13 +4,15 @@
 
 Palantir News는 팔란티어의 공식 발표와 엔지니어링 글에서 기술의 작동 방식과 현장 사례를 골라 한국어로 전하는 독립 큐레이터 채널입니다. 제품 이름만 나열하기보다, 어떤 문제를 풀려고 만들었고 실제 업무에서 어떻게 쓰이는지 살펴봅니다.
 
-![도시와 물류 현장을 잇는 데이터 흐름을 표현한 Palantir News 커버](assets/palantir-news-cover.png)
+**[Palantir News 사이트에서 읽기](https://palantir-news-jcurves.truelyric17.chatgpt.site/)**
+
+[![도시와 물류 현장을 잇는 데이터 흐름을 표현한 Palantir News 커버](assets/palantir-news-cover.png)](https://palantir-news-jcurves.truelyric17.chatgpt.site/)
 
 ## 골라 읽는 기술 이야기
 
-- [데이터 접근 권한에 '왜'를 남기는 방법](archive/2020/12월/2020-12-04.md) ([영문 원문](https://blog.palantir.com/purpose-based-access-controls-at-palantir-f419faa400b3)): 목적 기반 접근 제어가 권한 신청과 승인 사유를 어떻게 연결하는지 살펴봅니다.
-- [Foundry가 설비 데이터를 운영 판단으로 잇는 과정](archive/2022/03월/2022-03-22.md) ([영문 원문](https://blog.palantir.com/how-palantir-foundry-powers-bps-digital-transformation-in-reliability-4c644e36b6fc)): bp 사례를 통해 분산된 엔지니어링·유지보수 데이터를 한데 보는 이유를 읽습니다.
-- [AI 모델이 실험실을 떠나 현장에 가려면](archive/2023/06월/2023-06-09.md) ([영문 원문](https://blog.palantir.com/making-ai-and-ml-operational-the-modeling-objective-b4024897a766)): 모델링 목표가 AI 모델과 실제 운영 문제를 연결하는 역할을 알아봅니다.
+- [데이터 접근 권한에 '왜'를 남기는 방법](https://palantir-news-jcurves.truelyric17.chatgpt.site/article.html?id=f419faa400b3) ([영문 원문](https://blog.palantir.com/purpose-based-access-controls-at-palantir-f419faa400b3)): 목적 기반 접근 제어가 권한 신청과 승인 사유를 어떻게 연결하는지 살펴봅니다.
+- [Foundry가 설비 데이터를 운영 판단으로 잇는 과정](https://palantir-news-jcurves.truelyric17.chatgpt.site/article.html?id=4c644e36b6fc) ([영문 원문](https://blog.palantir.com/how-palantir-foundry-powers-bps-digital-transformation-in-reliability-4c644e36b6fc)): bp 사례를 통해 분산된 엔지니어링·유지보수 데이터를 한데 보는 이유를 읽습니다.
+- [AI 모델이 실험실을 떠나 현장에 가려면](https://palantir-news-jcurves.truelyric17.chatgpt.site/article.html?id=b4024897a766) ([영문 원문](https://blog.palantir.com/making-ai-and-ml-operational-the-modeling-objective-b4024897a766)): 모델링 목표가 AI 모델과 실제 운영 문제를 연결하는 역할을 알아봅니다.
 
 각 한국어 글에는 핵심 요약과 쉬운 설명이 있습니다. 세부 기술과 발표 사실은 함께 표시한 원문에서 확인할 수 있습니다.
 
@@ -23,7 +25,8 @@ Palantir News는 팔란티어의 공식 발표와 엔지니어링 글에서 기�
 
 ## 더 찾아보기
 
-- [한국어로 정리된 글](archive/): 날짜별 요약과 쉬운 설명
+- [사이트에서 전체 기사 탐색](https://palantir-news-jcurves.truelyric17.chatgpt.site/#explore): 연도와 주제로 글 찾기
+- [GitHub 아카이브](archive/): 날짜별 요약과 쉬운 설명
 - [전체 원문 목록](CATALOG.md): 발행일과 원문 링크. 한국어 분석 대기 중인 글도 포함됩니다.
 
 ---
