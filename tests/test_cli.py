@@ -8,13 +8,16 @@ from palantir_news import cli
 
 
 def article(article_id, published_at, status="pending"):
-    return {
+    item = {
         "id": article_id,
         "title": article_id,
         "url": f"https://blog.palantir.com/{article_id}",
         "published_at": published_at,
         "analysis_status": status,
     }
+    if status == "complete":
+        item["analysis_version"] = cli.ANALYSIS_VERSION
+    return item
 
 
 def rate_limit_error(retry_after):
@@ -31,6 +34,17 @@ def test_select_pending_prioritizes_new_posts():
     }
     assert [item["id"] for item in cli.select_pending(records, 1)] == ["new-pending"]
     assert [item["id"] for item in cli.select_pending(records, 5)] == ["new-pending", "old-failure"]
+
+
+def test_select_pending_revisits_old_summaries_after_new_posts():
+    old_complete = article("old-complete", "2020-01-01T00:00:00Z", "complete")
+    old_complete.pop("analysis_version")
+    records = {
+        "old-complete": old_complete,
+        "new-pending": article("new-pending", "2026-01-01T00:00:00Z"),
+    }
+
+    assert [item["id"] for item in cli.select_pending(records, 5)] == ["new-pending", "old-complete"]
 
 
 def test_rate_limit_retry_waits_then_succeeds(monkeypatch):
@@ -74,3 +88,23 @@ def test_rate_limit_stops_batch_without_marking_failure(monkeypatch, tmp_path):
     assert second["analysis_status"] == "pending"
     assert "body" not in first
     assert cli.load_index(index_path)["first"]["analysis_status"] == "pending"
+
+
+def test_failed_refresh_keeps_the_published_summary(monkeypatch, tmp_path):
+    existing = article("existing", "2020-01-01T00:00:00Z", "complete")
+    existing["analysis_version"] = 1
+    existing["analysis"] = {"summary": "Reviewed original summary"}
+    existing["body"] = "Source text"
+
+    def fail(_article, _api_key):
+        raise ValueError("Incomplete analysis response")
+
+    monkeypatch.setattr(cli, "summarize_with_rate_limit_retry", fail)
+    index_path = tmp_path / "articles.jsonl"
+    cli.analyze_pending([existing], {existing["id"]: existing}, index_path, "test-key", 0)
+
+    saved = cli.load_index(index_path)["existing"]
+    assert saved["analysis_status"] == "complete"
+    assert saved["analysis"]["summary"] == "Reviewed original summary"
+    assert saved["analysis_version"] == 1
+    assert "body" not in saved

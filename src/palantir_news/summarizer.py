@@ -10,6 +10,7 @@ from openai import OpenAI
 
 
 DEFAULT_MODEL = "qwen/qwen3.8-27b"
+ANALYSIS_VERSION = 2
 CATEGORIES = (
     "AI/에이전트",
     "데이터 플랫폼",

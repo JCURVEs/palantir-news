@@ -22,7 +22,7 @@ from .collector import (
     fetch_sitemap,
     publication_year,
 )
-from .summarizer import summarize
+from .summarizer import ANALYSIS_VERSION, summarize
 
 
 def load_index(path: Path) -> dict[str, dict[str, Any]]:
@@ -92,8 +92,18 @@ def collect_missing(urls: list[str], existing: dict[str, dict[str, Any]], worker
 
 
 def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[str, Any]]:
-    pending = [item for item in records.values() if item.get("analysis_status") != "complete"]
-    pending.sort(key=lambda item: (item.get("analysis_status") == "failed", item["published_at"]))
+    pending = [
+        item for item in records.values()
+        if item.get("analysis_status") != "complete"
+        or item.get("analysis_version", 0) < ANALYSIS_VERSION
+    ]
+    pending.sort(
+        key=lambda item: (
+            item.get("analysis_status") == "complete",
+            item.get("analysis_status") == "failed",
+            item["published_at"],
+        )
+    )
     return pending[:limit] if limit > 0 else pending
 
 
@@ -125,6 +135,7 @@ def analyze_pending(
         if number > 1 and pause_seconds > 0:
             time.sleep(pause_seconds)
         rate_limited = False
+        was_complete = article.get("analysis_status") == "complete"
         try:
             if not article.get("body"):
                 try:
@@ -132,14 +143,17 @@ def analyze_pending(
                 except Exception:
                     article["body"] = fetch_reader_text(article["url"], build_session())
             article["analysis"] = summarize_with_rate_limit_retry(article, api_key)
+            article["analysis_version"] = ANALYSIS_VERSION
             article["analysis_status"] = "complete"
             article.pop("analysis_error", None)
         except RateLimitError:
-            article["analysis_status"] = "pending"
+            if not was_complete:
+                article["analysis_status"] = "pending"
             article.pop("analysis_error", None)
             rate_limited = True
         except Exception as exc:
-            article["analysis_status"] = "failed"
+            if not was_complete:
+                article["analysis_status"] = "failed"
             article["analysis_error"] = f"{type(exc).__name__}: {exc}"
         finally:
             article.pop("body", None)
