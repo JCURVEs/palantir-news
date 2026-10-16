@@ -20,6 +20,25 @@ CATEGORIES = (
     "보안/거버넌스",
     "기업/파트너십",
 )
+UNREADABLE_SUMMARY_MARKERS = (
+    "CAPTCHA",
+    "보안 인증 페이지",
+    "보안 검증 페이지",
+    "원문 본문",
+)
+
+
+def validate_analysis(article: dict[str, Any], result: dict[str, Any]) -> None:
+    """Keep thin or source-blocked output out of the published archive."""
+    summary = str(result.get("summary", "")).strip()
+    easy = str(result.get("easy_explainer", "")).strip()
+    body_length = len(str(article.get("body", "")).strip())
+    if not summary or not easy or result.get("category") not in CATEGORIES:
+        raise ValueError("Analysis is missing required Korean content or category")
+    if body_length >= 1500 and len(summary) < 220:
+        raise ValueError("Summary is too thin for the available source article")
+    if any(marker in text for text in (summary, easy) for marker in UNREADABLE_SUMMARY_MARKERS):
+        raise ValueError("Summary describes a blocked page instead of the article")
 
 
 def build_prompt(article: dict[str, Any]) -> str:
@@ -76,4 +95,5 @@ def summarize(article: dict[str, Any], api_key: str | None = None, model: str | 
     if not required.issubset(result):
         raise ValueError(f"Incomplete analysis response: {required - set(result)}")
     result["importance"] = max(1, min(10, int(result["importance"])))
+    validate_analysis(article, result)
     return result
