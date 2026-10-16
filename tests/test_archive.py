@@ -52,3 +52,19 @@ def test_index_does_not_persist_full_article_body(tmp_path):
     save_index(path, {article["id"]: article})
     assert "Copyrighted source text" not in path.read_text(encoding="utf-8")
     assert "body" not in load_index(path)[article["id"]]
+
+
+def test_featured_articles_match_their_archives():
+    root = Path(__file__).resolve().parents[1]
+    records = load_index(root / "data" / "articles.jsonl")
+    featured_ids = ("f419faa400b3", "4c644e36b6fc", "b4024897a766")
+
+    for article_id in featured_ids:
+        article = records[article_id]
+        analysis = article["analysis"]
+        archived = archive_path(root / "archive", article["published_at"]).read_text(encoding="utf-8")
+        assert len(analysis["summary"]) >= 300
+        assert analysis["summary"] in archived
+        assert analysis["easy_explainer"] in archived
+
+    assert "고장 나기 전에 문제를 예측" not in records["4c644e36b6fc"]["analysis"]["easy_explainer"]
