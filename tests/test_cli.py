@@ -2,6 +2,8 @@ try:
     import httpx2 as httpx
 except ImportError:
     import httpx
+from datetime import datetime, timezone
+
 from openai import RateLimitError
 
 from palantir_news import cli
@@ -39,12 +41,24 @@ def test_select_pending_prioritizes_new_posts():
 def test_select_pending_revisits_old_summaries_after_new_posts():
     old_complete = article("old-complete", "2020-01-01T00:00:00Z", "complete")
     old_complete.pop("analysis_version")
+    old_complete["analysis"] = {"summary": "구체적인 사실과 맥락을 담은 기존 요약입니다. " * 10}
     records = {
         "old-complete": old_complete,
         "new-pending": article("new-pending", "2026-01-01T00:00:00Z"),
     }
 
     assert [item["id"] for item in cli.select_pending(records, 5)] == ["new-pending", "old-complete"]
+
+
+def test_select_pending_prioritizes_recent_and_thin_published_summaries():
+    recent = article("recent", datetime.now(timezone.utc).isoformat())
+    thin = article("thin", "2021-01-01T00:00:00Z", "complete")
+    thin.pop("analysis_version")
+    thin["analysis"] = {"summary": "원문 본문은 보안 검증 페이지로 인해 확인되지 않았습니다."}
+    older = article("older", "2022-01-01T00:00:00Z")
+    records = {item["id"]: item for item in (older, thin, recent)}
+
+    assert [item["id"] for item in cli.select_pending(records, 3)] == ["recent", "thin", "older"]
 
 
 def test_rate_limit_retry_waits_then_succeeds(monkeypatch):
@@ -72,7 +86,7 @@ def test_rate_limit_stops_batch_without_marking_failure(monkeypatch, tmp_path):
 
     def fetch(_url, _session):
         fetched.append(_url)
-        return {"body": "Source text"}
+        return {"body": "Source text " * 20}
 
     def summarize(_article, _api_key):
         raise rate_limit_error("120")
@@ -94,7 +108,7 @@ def test_failed_refresh_keeps_the_published_summary(monkeypatch, tmp_path):
     existing = article("existing", "2020-01-01T00:00:00Z", "complete")
     existing["analysis_version"] = 1
     existing["analysis"] = {"summary": "Reviewed original summary"}
-    existing["body"] = "Source text"
+    existing["body"] = "Source text " * 20
 
     def fail(_article, _api_key):
         raise ValueError("Incomplete analysis response")

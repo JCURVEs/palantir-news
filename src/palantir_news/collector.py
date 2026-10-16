@@ -18,6 +18,14 @@ from urllib3.util.retry import Retry
 SITEMAP_URL = "https://blog.palantir.com/sitemap/sitemap.xml"
 ARTICLE_ID_RE = re.compile(r"-([0-9a-f]{8,})$")
 USER_AGENT = "Palantir-News-Archive/1.0 (+https://github.com/JCURVEs/palantir-news)"
+BLOCKED_PAGE_MARKERS = (
+    "just a moment",
+    "verify you are human",
+    "checking your browser",
+    "captcha challenge",
+    "access denied",
+    "enable javascript and cookies",
+)
 
 
 def normalize_url(url: str) -> str:
@@ -84,6 +92,13 @@ def _json_ld_objects(soup: BeautifulSoup) -> Iterable[dict[str, Any]]:
 
 def _clean_text(value: str) -> str:
     return " ".join(value.replace("\ufffd", "'").split())
+
+
+def has_readable_body(body: str) -> bool:
+    """Reject short or access-control pages before sending text to the model."""
+    text = body.strip()
+    prefix = text[:600].lower()
+    return len(text) >= 200 and not any(marker in prefix for marker in BLOCKED_PAGE_MARKERS)
 
 
 def parse_article_html(url: str, html: str) -> dict[str, Any]:
@@ -161,16 +176,31 @@ def fetch_article(url: str, session: requests.Session | None = None) -> dict[str
     """Fetch and parse one Palantir Blog article."""
     client = session or build_session()
     article_id = article_id_from_url(url)
+    metadata_only: dict[str, Any] | None = None
     if article_id:
-        api_response = client.get(f"https://medium.com/p/{article_id}?format=json", timeout=30)
-        if api_response.ok and '"payload"' in api_response.text:
-            api_response.encoding = "utf-8"
-            return parse_medium_json(url, api_response.text)
+        try:
+            api_response = client.get(f"https://medium.com/p/{article_id}?format=json", timeout=30)
+            if api_response.ok and '"payload"' in api_response.text:
+                api_response.encoding = "utf-8"
+                article = parse_medium_json(url, api_response.text)
+                if has_readable_body(article["body"]):
+                    return article
+                metadata_only = article
+        except (requests.RequestException, ValueError, KeyError, TypeError):
+            pass
 
-    response = client.get(normalize_url(url), timeout=30)
-    response.raise_for_status()
-    response.encoding = "utf-8"
-    return parse_article_html(url, response.text)
+    try:
+        response = client.get(normalize_url(url), timeout=30)
+        response.raise_for_status()
+        response.encoding = "utf-8"
+        article = parse_article_html(url, response.text)
+    except (requests.RequestException, ValueError):
+        if metadata_only is None:
+            raise
+        article = metadata_only
+    if not has_readable_body(article["body"]):
+        article["body"] = ""
+    return article
 
 
 def fetch_reader_text(url: str, session: requests.Session | None = None) -> str:
@@ -179,7 +209,7 @@ def fetch_reader_text(url: str, session: requests.Session | None = None) -> str:
     response = client.get(f"https://r.jina.ai/{normalize_url(url)}", timeout=60)
     response.raise_for_status()
     text = _clean_text(response.text)
-    if len(text) < 200:
+    if not has_readable_body(text):
         raise ValueError(f"Reader returned insufficient content: {url}")
     return text
 

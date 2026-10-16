@@ -8,6 +8,7 @@ import os
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -20,9 +21,19 @@ from .collector import (
     fetch_article,
     fetch_reader_text,
     fetch_sitemap,
+    has_readable_body,
     publication_year,
 )
 from .summarizer import ANALYSIS_VERSION, summarize
+
+
+LOW_INFORMATION_PHRASES = (
+    "CAPTCHA",
+    "보안 인증 페이지",
+    "보안 검증 페이지",
+    "접근이 차단",
+    "원문 본문은",
+)
 
 
 def load_index(path: Path) -> dict[str, dict[str, Any]]:
@@ -97,13 +108,20 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[
         if item.get("analysis_status") != "complete"
         or item.get("analysis_version", 0) < ANALYSIS_VERSION
     ]
-    pending.sort(
-        key=lambda item: (
-            item.get("analysis_status") == "complete",
-            item.get("analysis_status") == "failed",
-            item["published_at"],
-        )
-    )
+    recent_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+
+    def priority(item: dict[str, Any]) -> tuple[int, str]:
+        status = item.get("analysis_status")
+        if status != "complete":
+            published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00"))
+            if status != "failed" and published >= recent_cutoff:
+                return (0, item["published_at"])
+            return (2 if status != "failed" else 3, item["published_at"])
+        summary = str((item.get("analysis") or {}).get("summary", ""))
+        needs_review = len(summary) < 180 or any(phrase in summary for phrase in LOW_INFORMATION_PHRASES)
+        return (1 if needs_review else 4, item["published_at"])
+
+    pending.sort(key=priority)
     return pending[:limit] if limit > 0 else pending
 
 
@@ -142,6 +160,8 @@ def analyze_pending(
                     article["body"] = fetch_article(article["url"], build_session())["body"]
                 except Exception:
                     article["body"] = fetch_reader_text(article["url"], build_session())
+            if not has_readable_body(article["body"]):
+                article["body"] = fetch_reader_text(article["url"], build_session())
             article["analysis"] = summarize_with_rate_limit_retry(article, api_key)
             article["analysis_version"] = ANALYSIS_VERSION
             article["analysis_status"] = "complete"

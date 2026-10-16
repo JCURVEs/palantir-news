@@ -1,6 +1,8 @@
 from palantir_news.collector import (
     article_id_from_url,
+    fetch_article,
     fetch_reader_text,
+    has_readable_body,
     normalize_url,
     parse_article_html,
     parse_medium_json,
@@ -76,3 +78,66 @@ def test_reader_fallback_uses_canonical_source_url():
         FakeSession(),
     )
     assert text.startswith("Palantir article content")
+
+
+def test_access_challenge_is_not_readable_article_content():
+    assert not has_readable_body("Just a moment... Verify you are human. " * 20)
+    assert not has_readable_body("A short preview")
+    assert has_readable_body("The article explains the implementation. " * 20)
+
+
+def test_fetch_article_retries_html_when_medium_body_is_blocked():
+    url = "https://blog.palantir.com/example-abcdef123456"
+    html = """<html><head><script type="application/ld+json">
+    {"identifier":"abcdef123456","url":"https://blog.palantir.com/example-abcdef123456",
+     "headline":"Example Post","datePublished":"2021-03-04T10:30:00Z"}
+    </script></head><body><article><p>""" + "Detailed source content. " * 20 + """</p></article></body></html>"""
+
+    class FakeResponse:
+        def __init__(self, text, ok=True):
+            self.text = text
+            self.ok = ok
+            self.encoding = None
+
+        def raise_for_status(self):
+            return None
+
+    class FakeSession:
+        def get(self, requested, timeout):
+            if "format=json" in requested:
+                return FakeResponse('"payload" Just a moment. Verify you are human.')
+            assert requested == url
+            return FakeResponse(html)
+
+    article = fetch_article(url, FakeSession())
+    assert article["title"] == "Example Post"
+    assert "Detailed source content" in article["body"]
+
+
+def test_fetch_article_keeps_metadata_when_body_is_blocked():
+    url = "https://blog.palantir.com/example-abcdef123456"
+    api_json = """</x>{"payload":{"value":{
+      "id":"abcdef123456","title":"Example Post","firstPublishedAt":1609459200000,
+      "latestPublishedAt":1609459200000,
+      "content":{"bodyModel":{"paragraphs":[{"text":"Just a moment. Verify you are human."}]}}
+    }}}"""
+
+    class FakeResponse:
+        ok = True
+
+        def __init__(self, text):
+            self.text = text
+            self.encoding = None
+
+        def raise_for_status(self):
+            return None
+
+    class FakeSession:
+        def get(self, requested, timeout):
+            return FakeResponse(api_json if "format=json" in requested else "<html>Access denied</html>")
+
+    article = fetch_article(url, FakeSession())
+    assert article["title"] == "Example Post"
+    assert article["published_at"] == "2021-01-01T00:00:00Z"
+    assert article["body"] == ""
+    assert article["analysis_status"] == "pending"
