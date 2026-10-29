@@ -31,6 +31,9 @@ UNREADABLE_SUMMARY_MARKERS = (
 
 def normalize_newsletter(article: dict[str, Any], newsletter: dict[str, Any]) -> None:
     """Anchor optional emphasis and image links to text the model actually wrote."""
+    closing = newsletter.get("closing")
+    if isinstance(closing, list) and all(isinstance(part, str) for part in closing):
+        newsletter["closing"] = " ".join(part.strip() for part in closing if part.strip())
     allowed_headings = set(article.get("source_headings") or [])
     sections = newsletter.get("sections") or []
     for section in sections:
@@ -92,7 +95,7 @@ def validate_analysis(article: dict[str, Any], result: dict[str, Any]) -> None:
             source_heading = section.get("source_heading") or ""
             if source_heading and source_heading not in (article.get("source_headings") or []):
                 raise ValueError("Newsletter references an unknown source heading")
-        if len(str(newsletter.get("closing", "")).strip()) < 40:
+        if not isinstance(newsletter.get("closing"), str) or len(newsletter["closing"].strip()) < 40:
             raise ValueError("Newsletter needs a grounded closing paragraph")
         highlights = newsletter.get("highlights")
         paragraphs = lead + [paragraph for section in sections for paragraph in section["paragraphs"]] + [newsletter["closing"]]

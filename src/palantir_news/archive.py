@@ -93,7 +93,10 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         if unmatched_media:
             lines.extend(["### 연관 제품 자료", ""])
             _append_product_media(lines, unmatched_media)
-        lines.extend(["### 정리하면", "", mark_highlights(newsletter["closing"], highlights), ""])
+        closing = newsletter["closing"]
+        if isinstance(closing, list):
+            closing = " ".join(part for part in closing if isinstance(part, str))
+        lines.extend(["### 정리하면", "", mark_highlights(closing, highlights), ""])
     else:
         lines.extend(["**요약:**  ", str(analysis["summary"]), ""])
         if analysis.get("key_points"):

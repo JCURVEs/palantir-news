@@ -107,3 +107,32 @@ def test_normalize_newsletter_uses_only_exact_body_sentences():
     assert newsletter["sections"][0]["source_heading"] == ""
     assert len(newsletter["highlights"]) == 2
     assert all(sentence in " ".join(newsletter["lead"]) for sentence in newsletter["highlights"])
+
+
+def test_normalize_newsletter_joins_model_closing_paragraphs():
+    newsletter = {
+        "lead": ["Palantir는 보안 설정을 확인합니다. 필요한 조치를 안내합니다."],
+        "sections": [],
+        "closing": ["확인된 부분은 자동화합니다.", "남은 판단은 담당자가 검토해야 합니다."],
+    }
+    normalize_newsletter({}, newsletter)
+    assert newsletter["closing"] == "확인된 부분은 자동화합니다. 남은 판단은 담당자가 검토해야 합니다."
+
+
+def test_validate_newsletter_rejects_nonstring_closing():
+    article = {"body": "short"}
+    paragraph = "Palantir는 보안 설정을 확인하고 필요한 조치를 담당자에게 안내합니다."
+    result = {
+        "summary": "설명", "easy_explainer": "설명", "category": "보안/거버넌스",
+        "newsletter": {
+            "dek": "보안 설정을 검토하는 과정을 설명합니다.",
+            "lead": [paragraph, paragraph],
+            "sections": [
+                {"heading": "설정을 자동으로 검사하는 방식", "paragraphs": [paragraph]},
+                {"heading": "담당자에게 필요한 후속 조치", "paragraphs": [paragraph]},
+            ],
+            "closing": [paragraph, paragraph],
+        },
+    }
+    with pytest.raises(ValueError, match="closing paragraph"):
+        validate_analysis(article, result)
