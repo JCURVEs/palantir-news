@@ -97,7 +97,7 @@ def test_newsletter_requires_substance_and_known_source_heading():
 
 def test_normalize_newsletter_uses_only_exact_body_sentences():
     newsletter = {
-        "lead": ["Palantir는 여러 데이터의 의미를 연결해 공통 기준을 만듭니다. 다른 앱에서도 같은 정의를 재사용합니다.",
+        "lead": ["Palantir는 여러 데이터의 의미를 연결해 공통 기준을 만듭니다. 다른 앱에서도 같은 정의를 재사용하므로 해석이 달라지는 일을 줄입니다.",
                  "운영팀은 바뀐 객체 정의를 한곳에서 관리합니다."],
         "sections": [{"source_heading": "Invented", "paragraphs": ["업무 담당자는 연결된 기록을 확인합니다."]}],
         "closing": "실제 성과 수치는 아직 확인되지 않았습니다.",
