@@ -61,6 +61,15 @@ def test_select_pending_prioritizes_recent_and_thin_published_summaries():
     assert [item["id"] for item in cli.select_pending(records, 3)] == ["recent", "thin", "older"]
 
 
+def test_select_pending_works_from_newest_historical_post():
+    records = {
+        "2024": article("2024", "2024-05-01T00:00:00Z"),
+        "2026": article("2026", "2026-05-01T00:00:00Z"),
+        "2025": article("2025", "2025-05-01T00:00:00Z"),
+    }
+    assert [item["id"] for item in cli.select_pending(records, 3)] == ["2026", "2025", "2024"]
+
+
 def test_rate_limit_retry_waits_then_succeeds(monkeypatch):
     calls = []
     waits = []

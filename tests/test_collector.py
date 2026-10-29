@@ -60,6 +60,41 @@ def test_parse_medium_json_uses_first_publication_timestamp():
     assert article["body"] == "First Second"
 
 
+def test_parse_medium_json_collects_distinct_body_images_with_section():
+    raw = "</x>" + """{"payload":{"value":{
+      "id":"abcdef123456","title":"Image Article",
+      "firstPublishedAt":1609459200000,"latestPublishedAt":1609459200000,
+      "content":{"bodyModel":{"paragraphs":[
+        {"type":4,"metadata":{"id":"1*cover.png"}},
+        {"type":3,"text":"How it works"},
+        {"type":4,"metadata":{"id":"1*diagram.png"}},
+        {"type":4,"metadata":{"id":"1*diagram.png"}},
+        {"type":4,"metadata":{"id":"https://evil.example/image"}}
+      ]}},"virtuals":{"previewImage":{"imageId":"1*cover.png"}}
+    }}}"""
+    article = parse_medium_json("https://blog.palantir.com/image-abcdef123456", raw)
+    assert article["inline_images"] == [{
+        "url": "https://miro.medium.com/v2/resize:fit:1200/1*diagram.png",
+        "caption": "",
+        "section": "How it works",
+    }]
+
+
+def test_parse_html_collects_figure_and_caption():
+    html = """<script type="application/ld+json">{
+      "headline":"Example","datePublished":"2021-01-01T00:00:00Z",
+      "image":"https://miro.medium.com/cover.png"
+    }</script><article><h2>Method</h2><figure>
+      <img src="https://miro.medium.com/diagram.png"><figcaption>System diagram</figcaption>
+    </figure></article>"""
+    article = parse_article_html("https://blog.palantir.com/example-abcdef123456", html)
+    assert article["inline_images"] == [{
+        "url": "https://miro.medium.com/diagram.png",
+        "caption": "System diagram",
+        "section": "Method",
+    }]
+
+
 def test_reader_fallback_uses_canonical_source_url():
     class FakeResponse:
         text = "Palantir article content " * 20

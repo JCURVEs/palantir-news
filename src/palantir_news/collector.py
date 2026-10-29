@@ -101,6 +101,37 @@ def has_readable_body(body: str) -> bool:
     return len(text) >= 200 and not any(marker in prefix for marker in BLOCKED_PAGE_MARKERS)
 
 
+def _medium_image_url(image_id: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9*_.-]+", image_id):
+        return ""
+    return f"https://miro.medium.com/v2/resize:fit:1200/{image_id}"
+
+
+def _html_inline_images(article: Any, cover_url: str) -> list[dict[str, str]]:
+    images: list[dict[str, str]] = []
+    seen = {cover_url}
+    section = ""
+    for node in article.find_all(["h2", "h3", "figure"]):
+        if node.name in ("h2", "h3"):
+            section = _clean_text(node.get_text(" ", strip=True))
+            continue
+        img = node.find("img")
+        if not img:
+            continue
+        candidate = str(img.get("data-src") or img.get("src") or "")
+        parts = urlsplit(candidate)
+        if parts.scheme != "https" or parts.netloc != "miro.medium.com" or candidate in seen:
+            continue
+        seen.add(candidate)
+        caption = node.find("figcaption")
+        images.append({
+            "url": candidate,
+            "caption": _clean_text(caption.get_text(" ", strip=True)) if caption else "",
+            "section": section,
+        })
+    return images
+
+
 def parse_article_html(url: str, html: str) -> dict[str, Any]:
     """Parse stable metadata and readable article text from a Medium page."""
     soup = BeautifulSoup(html, "html.parser")
@@ -126,6 +157,7 @@ def parse_article_html(url: str, html: str) -> dict[str, Any]:
     if isinstance(author, list):
         author = author[0] if author else {}
 
+    cover_url = str(images[0]) if images else ""
     return {
         "id": article_id,
         "url": canonical_url,
@@ -134,7 +166,8 @@ def parse_article_html(url: str, html: str) -> dict[str, Any]:
         "published_at": str(metadata["datePublished"]),
         "modified_at": str(metadata.get("dateModified", "")),
         "author": _clean_text(str(author.get("name", "Palantir"))) if isinstance(author, dict) else "Palantir",
-        "image_url": str(images[0]) if images else "",
+        "image_url": cover_url,
+        "inline_images": _html_inline_images(article, cover_url) if article else [],
         "body": body,
         "analysis": None,
         "analysis_status": "pending",
@@ -155,7 +188,22 @@ def parse_medium_json(url: str, raw: str) -> dict[str, Any]:
     virtuals = value.get("virtuals") or {}
     preview = virtuals.get("previewImage") or {}
     image_id = str(preview.get("imageId", ""))
-    image_url = f"https://miro.medium.com/v2/resize:fit:1200/{image_id}" if image_id else ""
+    image_url = _medium_image_url(image_id)
+    inline_images: list[dict[str, str]] = []
+    seen_ids = {image_id}
+    section = ""
+    for paragraph in paragraphs:
+        if paragraph.get("type") == 3:
+            section = _clean_text(str(paragraph.get("text") or ""))
+        if paragraph.get("type") != 4:
+            continue
+        metadata = paragraph.get("metadata") or {}
+        current_id = str(metadata.get("id") or "")
+        current_url = _medium_image_url(current_id)
+        if not current_url or current_id in seen_ids:
+            continue
+        seen_ids.add(current_id)
+        inline_images.append({"url": current_url, "caption": "", "section": section})
 
     return {
         "id": str(value["id"]),
@@ -166,6 +214,7 @@ def parse_medium_json(url: str, raw: str) -> dict[str, Any]:
         "modified_at": modified.isoformat().replace("+00:00", "Z"),
         "author": "Palantir",
         "image_url": image_url,
+        "inline_images": inline_images,
         "body": body,
         "analysis": None,
         "analysis_status": "pending",

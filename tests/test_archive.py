@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from palantir_news.archive import archive_path, rebuild_archives
-from palantir_news.cli import load_index, save_index, write_catalog
+from palantir_news.cli import enrich_media, load_index, save_index, write_catalog
 
 
 def sample_article():
@@ -54,6 +54,33 @@ def test_index_does_not_persist_full_article_body(tmp_path):
     assert "body" not in load_index(path)[article["id"]]
 
 
+def test_media_backfill_preserves_existing_analysis(tmp_path, monkeypatch):
+    article = sample_article()
+    records = {article["id"]: article}
+    original_analysis = article["analysis"].copy()
+    monkeypatch.setattr("palantir_news.cli.build_session", lambda: object())
+    monkeypatch.setattr("palantir_news.cli.fetch_article", lambda url, session: {
+        "image_url": "https://miro.medium.com/cover.png",
+        "inline_images": [{"url": "https://miro.medium.com/diagram.png", "caption": "", "section": "Method"}],
+    })
+    index_path = tmp_path / "articles.jsonl"
+    assert enrich_media(records, index_path, 1, 1) == (1, 0)
+    assert article["analysis"] == original_analysis
+    assert load_index(index_path)[article["id"]]["inline_images"][0]["section"] == "Method"
+
+
+def test_archive_includes_detailed_analysis_and_inline_images(tmp_path):
+    article = sample_article()
+    article["analysis"]["key_points"] = ["데이터 흐름을 구체적으로 설명합니다."]
+    article["analysis"]["technical_detail"] = "기술 흐름의 세부 단계입니다."
+    article["inline_images"] = [{"url": "https://miro.medium.com/diagram.png", "caption": "", "section": "Method"}]
+    rebuild_archives([article], tmp_path)
+    content = archive_path(tmp_path, article["published_at"]).read_text(encoding="utf-8")
+    assert "**핵심 내용:**" in content
+    assert "**기술 해설:**" in content
+    assert "![원문 이미지 1](https://miro.medium.com/diagram.png)" in content
+
+
 def test_reviewed_articles_match_their_archives():
     root = Path(__file__).resolve().parents[1]
     records = load_index(root / "data" / "articles.jsonl")
@@ -66,7 +93,7 @@ def test_reviewed_articles_match_their_archives():
         article = records[article_id]
         analysis = article["analysis"]
         archived = archive_path(root / "archive", article["published_at"]).read_text(encoding="utf-8")
-        assert article["analysis_version"] == 2
+        assert article["analysis_version"] >= 2
         assert len(analysis["summary"]) >= 300
         assert analysis["summary"] in archived
         assert analysis["easy_explainer"] in archived

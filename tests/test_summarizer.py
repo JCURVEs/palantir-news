@@ -9,6 +9,8 @@ def test_prompt_requests_concrete_mechanism_and_evidence():
     assert "어떤 문제를 어떤 방식으로 풀었나" in prompt
     assert "실측 성과와 계획/예상 효과를 구별" in prompt
     assert "Source detail" in prompt
+    assert "key_points" in prompt
+    assert "technical_detail" in prompt
 
 
 def test_prompt_keeps_end_of_long_article():

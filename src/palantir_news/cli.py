@@ -102,6 +102,34 @@ def collect_missing(urls: list[str], existing: dict[str, dict[str, Any]], worker
     return collected, failures
 
 
+def enrich_media(records: dict[str, dict[str, Any]], index_path: Path, limit: int, workers: int) -> tuple[int, int]:
+    """Backfill article images without changing its approved Korean analysis."""
+    candidates = [item for item in records.values() if not item.get("media_checked_at")]
+    candidates.sort(key=lambda item: item["published_at"], reverse=True)
+    if limit > 0:
+        candidates = candidates[:limit]
+    enriched = 0
+    failures = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(fetch_article, item["url"], build_session()): item for item in candidates}
+        for number, future in enumerate(as_completed(futures), start=1):
+            item = futures[future]
+            try:
+                fetched = future.result()
+                item["inline_images"] = fetched.get("inline_images", [])
+                if fetched.get("image_url") and not item.get("image_url"):
+                    item["image_url"] = fetched["image_url"]
+                item["media_checked_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                enriched += 1
+            except Exception as exc:
+                failures += 1
+                print(f"::warning::Image extraction failed for {item['url']}: {type(exc).__name__}: {exc}")
+            if number % 25 == 0 or number == len(candidates):
+                save_index(index_path, records)
+                print(f"Checked article images {number}/{len(candidates)}")
+    return enriched, failures
+
+
 def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[str, Any]]:
     pending = [
         item for item in records.values()
@@ -110,16 +138,17 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[
     ]
     recent_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
-    def priority(item: dict[str, Any]) -> tuple[int, str]:
+    def priority(item: dict[str, Any]) -> tuple[int, float]:
         status = item.get("analysis_status")
+        published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00"))
+        newest_first = -published.timestamp()
         if status != "complete":
-            published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00"))
             if status != "failed" and published >= recent_cutoff:
-                return (0, item["published_at"])
-            return (2 if status != "failed" else 3, item["published_at"])
+                return (0, newest_first)
+            return (2 if status != "failed" else 4, newest_first)
         summary = str((item.get("analysis") or {}).get("summary", ""))
         needs_review = len(summary) < 180 or any(phrase in summary for phrase in LOW_INFORMATION_PHRASES)
-        return (1 if needs_review else 4, item["published_at"])
+        return (1 if needs_review else 3, newest_first)
 
     pending.sort(key=priority)
     return pending[:limit] if limit > 0 else pending
@@ -192,6 +221,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--analysis-limit", type=int, default=0, help="Maximum pending posts to analyze; 0 means all")
     parser.add_argument("--analysis-pause-seconds", type=float, default=0, help="Pause between analysis requests")
     parser.add_argument("--collect-only", action="store_true")
+    parser.add_argument("--media-limit", type=int, default=0, help="Backfill images for this many existing posts; 0 disables backfill")
+    parser.add_argument("--media-only", action="store_true", help="Skip sitemap collection and AI analysis while backfilling images")
     parser.add_argument("--refresh", action="store_true", help="Refetch already indexed article pages")
     return parser.parse_args()
 
@@ -207,8 +238,9 @@ def main() -> int:
     if ignored_path.exists() and not args.refresh:
         ignored_urls = {line.strip() for line in ignored_path.read_text(encoding="utf-8").splitlines() if line.strip()}
 
-    urls = [url for url in fetch_sitemap() if url not in ignored_urls]
-    collected, failures = collect_missing(urls, records, max(1, min(args.workers, 8)))
+    workers = max(1, min(args.workers, 8))
+    urls = [] if args.media_only else [url for url in fetch_sitemap() if url not in ignored_urls]
+    collected, failures = collect_missing(urls, records, workers)
     for article in collected:
         year = publication_year(article)
         if args.start_year <= year <= args.end_year:
@@ -222,16 +254,20 @@ def main() -> int:
         if args.start_year <= publication_year(article) <= args.end_year
     }
     save_index(index_path, records)
+    if args.media_limit > 0:
+        enriched, media_failures = enrich_media(records, index_path, args.media_limit, workers)
+        print(f"Article images checked: {enriched}; failures: {media_failures}")
     ignored_path.write_text("\n".join(sorted(ignored_urls)) + ("\n" if ignored_urls else ""), encoding="utf-8")
-    failure_path.write_text("\n".join(failures) + ("\n" if failures else ""), encoding="utf-8")
+    if not args.media_only:
+        failure_path.write_text("\n".join(failures) + ("\n" if failures else ""), encoding="utf-8")
     write_catalog(root / "CATALOG.md", records)
 
     pending = select_pending(records, args.analysis_limit)
 
     key = os.getenv("GROQ_API_KEY")
-    if not args.collect_only and key:
+    if not args.collect_only and not args.media_only and key:
         analyze_pending(pending, records, index_path, key, args.analysis_pause_seconds)
-    elif not args.collect_only and pending:
+    elif not args.collect_only and not args.media_only and pending:
         print(f"GROQ_API_KEY is not configured; {len(pending)} articles remain pending")
 
     archived = rebuild_archives(records.values(), root / "archive")

@@ -10,7 +10,7 @@ from openai import OpenAI
 
 
 DEFAULT_MODEL = "qwen/qwen3.8-27b"
-ANALYSIS_VERSION = 2
+ANALYSIS_VERSION = 3
 CATEGORIES = (
     "AI/에이전트",
     "데이터 플랫폼",
@@ -39,6 +39,9 @@ def validate_analysis(article: dict[str, Any], result: dict[str, Any]) -> None:
         raise ValueError("Summary is too thin for the available source article")
     if any(marker in text for text in (summary, easy) for marker in UNREADABLE_SUMMARY_MARKERS):
         raise ValueError("Summary describes a blocked page instead of the article")
+    points = result.get("key_points")
+    if points is not None and (not isinstance(points, list) or not 2 <= len(points) <= 5 or any(not isinstance(point, str) or len(point.strip()) < 20 for point in points)):
+        raise ValueError("Key points must contain 2-5 substantive Korean facts")
 
 
 def build_prompt(article: dict[str, Any]) -> str:
@@ -59,6 +62,8 @@ def build_prompt(article: dict[str, Any]) -> str:
 - '혁신', '극대화', '변혁' 같은 홍보 문구와 '이 글은 ~를 다룹니다' 같은 메타 설명을 피하라.
 - 요약은 서로 다른 사실을 담은 5~7문장으로 작성하되, 짧은 원문을 억지로 늘리지 마라.
 - 쉬운 설명은 추상적 비유 대신 원문의 실제 사례를 일상어로 풀어라. 요약에 없는 성과를 덧붙이지 마라.
+- 핵심 내용은 원문에 근거한 서로 다른 사실 2~5개로 나눠 적어라. 각 항목은 행위 주체와 동작 또는 근거를 포함하라.
+- 기술 해설은 데이터가 들어와 처리되고 실제 업무에 쓰이는 흐름을 2~4문장으로 설명하라. 원문에 구현 정보가 부족하면 빈 문자열로 두라.
 
 제목: {article.get('title', '')}
 발행일: {article.get('published_at', '')}
@@ -70,6 +75,8 @@ JSON 객체 하나만 반환하라:
 {{
   "title_ko": "자연스럽고 사실적인 한국어 제목",
   "summary": "문제, 작동 방식, 원문 사례와 근거, 확인된 결과 또는 남은 과제를 담은 한국어 요약",
+  "key_points": ["원문에서 확인되는 구체적인 핵심 사실 1", "핵심 사실 2", "핵심 사실 3"],
+  "technical_detail": "원문에서 확인되는 구현 또는 업무 흐름의 추가 설명. 정보가 부족하면 빈 문자열",
   "easy_explainer": "원문의 실제 사례를 바탕으로 비전문가도 이해할 수 있게 쓴 1~2문장",
   "category": "{('|'.join(CATEGORIES))} 중 하나",
   "importance": 1부터 10 사이 정수
@@ -88,10 +95,10 @@ def summarize(article: dict[str, Any], api_key: str | None = None, model: str | 
         messages=[{"role": "user", "content": build_prompt(article)}],
         response_format={"type": "json_object"},
         temperature=0.2,
-        max_tokens=1400,
+        max_tokens=1900,
     )
     result = json.loads(response.choices[0].message.content or "{}")
-    required = {"title_ko", "summary", "easy_explainer", "category", "importance"}
+    required = {"title_ko", "summary", "key_points", "technical_detail", "easy_explainer", "category", "importance"}
     if not required.issubset(result):
         raise ValueError(f"Incomplete analysis response: {required - set(result)}")
     result["importance"] = max(1, min(10, int(result["importance"])))

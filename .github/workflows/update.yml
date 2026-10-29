@@ -38,7 +38,7 @@ jobs:
             echo "analysis_limit must be between 1 and 5" >&2
             exit 1
           fi
-          palantir-news --start-year 2020 --end-year 2026 --analysis-limit "$ANALYSIS_LIMIT" --analysis-pause-seconds 60
+          palantir-news --start-year 2020 --end-year 2026 --analysis-limit "$ANALYSIS_LIMIT" --analysis-pause-seconds 60 --media-limit 20
       - name: Commit updates
         run: |
           git config user.name "github-actions[bot]"

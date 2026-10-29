@@ -14,7 +14,7 @@ Palantir News는 팔란티어의 공식 발표와 엔지니어링 글에서 기�
 - [Foundry가 설비 데이터를 운영 판단으로 잇는 과정](https://palantir-news-jcurves.truelyric17.chatgpt.site/article.html?id=4c644e36b6fc) ([영문 원문](https://blog.palantir.com/how-palantir-foundry-powers-bps-digital-transformation-in-reliability-4c644e36b6fc)): bp 사례를 통해 분산된 엔지니어링·유지보수 데이터를 한데 보는 이유를 읽습니다.
 - [AI 모델이 실험실을 떠나 현장에 가려면](https://palantir-news-jcurves.truelyric17.chatgpt.site/article.html?id=b4024897a766) ([영문 원문](https://blog.palantir.com/making-ai-and-ml-operational-the-modeling-objective-b4024897a766)): 모델링 목표가 AI 모델과 실제 운영 문제를 연결하는 역할을 알아봅니다.
 
-각 한국어 글에는 핵심 요약과 쉬운 설명이 있습니다. 세부 기술과 발표 사실은 함께 표시한 원문에서 확인할 수 있습니다.
+각 한국어 글에는 핵심 요약과 쉬운 설명을 담습니다. 새로 분석한 글에는 핵심 내용과 기술 해설을 덧붙이고, 원문 속 도표와 이미지는 출처를 표시해 함께 보여줍니다. 세부 사실은 원문에서 확인할 수 있습니다.
 
 ## 주목하는 분야
 

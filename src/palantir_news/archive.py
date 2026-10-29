@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -27,6 +28,14 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         "**요약:**  ",
         str(analysis["summary"]),
         "",
+    ]
+    if analysis.get("key_points"):
+        lines.extend(["**핵심 내용:**", ""])
+        lines.extend(f"- {point}" for point in analysis["key_points"])
+        lines.append("")
+    if analysis.get("technical_detail"):
+        lines.extend(["**기술 해설:**  ", str(analysis["technical_detail"]), ""])
+    lines.extend([
         "**쉬운설명:**  ",
         str(analysis["easy_explainer"]),
         "",
@@ -34,9 +43,15 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         "",
         f"**원문제목:** {article['title']}",
         "",
-    ]
+    ])
     if article.get("image_url"):
-        lines.extend([f"![Article Image]({article['image_url']})", ""])
+        lines.extend([f"![원문 대표 이미지]({article['image_url']})", ""])
+    if article.get("inline_images"):
+        lines.extend(["**원문 속 이미지:**", ""])
+        for number, image in enumerate(article["inline_images"], start=1):
+            lines.extend([f"![원문 이미지 {number}]({image['url']})", ""])
+            if image.get("caption"):
+                lines.extend([image["caption"], ""])
     return "\n".join(lines)
 
 
@@ -51,6 +66,17 @@ def rebuild_archives(articles: Iterable[dict[str, Any]], root: Path) -> int:
     collected_on = date.today().isoformat()
     for path, items in grouped.items():
         path.parent.mkdir(parents=True, exist_ok=True)
+        previous_dates = {}
+        if path.exists():
+            old_content = path.read_text(encoding="utf-8")
+            previous_dates = {
+                match.group("url"): match.group("date")
+                for match in re.finditer(
+                    r"\*\*수집일:\*\* (?P<date>\d{4}-\d{2}-\d{2}).*?\*\*출처:\*\* (?P<url>https?://\S+)",
+                    old_content,
+                    re.DOTALL,
+                )
+            }
         day = path.stem
         content = [
             f"# Palantir News ({day})",
@@ -61,7 +87,7 @@ def rebuild_archives(articles: Iterable[dict[str, Any]], root: Path) -> int:
             "",
         ]
         for article in sorted(items, key=lambda item: item["published_at"]):
-            content.append(render_article(article, collected_on))
+            content.append(render_article(article, previous_dates.get(article["url"], collected_on)))
         path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
     return sum(len(items) for items in grouped.values())
 
