@@ -61,6 +61,16 @@ def validate_analysis(article: dict[str, Any], result: dict[str, Any]) -> None:
                 raise ValueError("Newsletter references an unknown source heading")
         if len(str(newsletter.get("closing", "")).strip()) < 40:
             raise ValueError("Newsletter needs a grounded closing paragraph")
+        highlights = newsletter.get("highlights")
+        paragraphs = lead + [paragraph for section in sections for paragraph in section["paragraphs"]] + [newsletter["closing"]]
+        if not isinstance(highlights, list) or not 2 <= len(highlights) <= 3 or any(
+            not isinstance(sentence, str)
+            or not 30 <= len(sentence.strip()) <= 180
+            or not sentence.strip().endswith((".", "?", "!"))
+            or not any(sentence in paragraph for paragraph in paragraphs)
+            for sentence in highlights
+        ) or len(set(highlights)) != len(highlights):
+            raise ValueError("Highlights must repeat 2-3 distinct sentences from the newsletter")
         newsletter_length = sum(len(p) for p in lead) + sum(len(p) for section in sections for p in section["paragraphs"]) + len(newsletter["closing"])
         if body_length >= 1500 and newsletter_length < 800:
             raise ValueError("Newsletter is too thin for the available source article")
@@ -92,6 +102,7 @@ def build_prompt(article: dict[str, Any]) -> str:
 - 소제목에는 그 절에서 설명할 내용이 드러나야 한다. '핵심 기술', '의미와 전망' 같은 빈 제목을 피하라.
 - 기술 용어 옆에는 쉬운 풀이를 붙이고, 메커니즘과 원문의 사례를 문단으로 연결한다. 목록만 나열하지 마라.
 - 마무리는 검증된 의미와 아직 확인되지 않은 범위를 구분한다. 근거 없이 미래 성과를 예언하지 마라.
+- top highlights에는 핵심 문장 2~3개를 고른다. 반드시 네가 쓴 도입·본문·마무리에 이미 등장한 완전한 문장을 글자 하나 바꾸지 말고 그대로 복사하라. 새로운 주장을 추가하지 마라.
 - 이 원문이 인터뷰가 아니면 문답, 직접 인용, 가상의 인물을 만들지 마라. 원문을 길게 번역하거나 베끼지 말고 독자적인 한국어 해설로 재구성하라.
 - 이미지의 내용을 보지 못했으므로 이미지를 해석하지 마라. source_heading은 아래 원문 소제목과 정확히 일치할 때만 넣어라.
 
@@ -109,6 +120,7 @@ JSON 객체 하나만 반환하라:
   "newsletter": {{
     "dek": "기술 주제와 독자가 얻을 관점을 담은 한 문장 부제",
     "lead": ["문제나 장면을 보여주는 2~3문장", "이 글의 질문과 공식 원문 맥락을 알려주는 2~3문장"],
+    "highlights": ["도입이나 본문에서 그대로 복사한 핵심 문장 1", "본문에서 그대로 복사한 핵심 문장 2"],
     "sections": [
       {{"heading": "내용이 드러나는 구체적 소제목", "source_heading": "일치하는 원문 소제목 또는 빈 문자열", "paragraphs": ["원문 근거가 있는 2~3문장", "작동 방식이나 사례를 풀어주는 2~3문장"]}}
     ],

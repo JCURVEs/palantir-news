@@ -58,7 +58,7 @@ def test_short_announcement_can_have_concise_grounded_summary():
 
 def test_newsletter_requires_substance_and_known_source_heading():
     article = {"body": "Detailed source evidence. " * 100, "source_headings": ["Implementation"]}
-    paragraph = "조직은 데이터와 업무 개념을 연결하고, 여러 애플리케이션이 같은 객체 정의를 재사용합니다. " * 5
+    paragraph = "조직은 데이터와 업무 개념을 연결해 공통 기준을 세웁니다. 여러 애플리케이션이 같은 객체 정의를 재사용해 해석 작업을 줄입니다. " * 5
     result = {
         "summary": paragraph * 2,
         "easy_explainer": paragraph,
@@ -66,6 +66,7 @@ def test_newsletter_requires_substance_and_known_source_heading():
         "newsletter": {
             "dek": "데이터를 업무 개념에 연결하는 방법을 살펴봅니다.",
             "lead": [paragraph, paragraph],
+            "highlights": ["조직은 데이터와 업무 개념을 연결해 공통 기준을 세웁니다.", "원문에 없는 문장을 모델이 새로 지어낸 경우에는 하이라이트로 발행하면 안 됩니다."],
             "sections": [
                 {"heading": "서로 다른 데이터를 같은 객체로 연결", "source_heading": "Implementation", "paragraphs": [paragraph]},
                 {"heading": "업무 앱에서 정의를 재사용", "source_heading": "", "paragraphs": [paragraph]},
@@ -73,6 +74,9 @@ def test_newsletter_requires_substance_and_known_source_heading():
             "closing": paragraph,
         },
     }
+    with pytest.raises(ValueError, match="Highlights"):
+        validate_analysis(article, result)
+    result["newsletter"]["highlights"][1] = "여러 애플리케이션이 같은 객체 정의를 재사용해 해석 작업을 줄입니다."
     validate_analysis(article, result)
     result["newsletter"]["sections"][0]["source_heading"] = "Invented"
     with pytest.raises(ValueError, match="unknown source heading"):
