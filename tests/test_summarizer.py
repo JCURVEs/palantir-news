@@ -1,6 +1,6 @@
 import pytest
 
-from palantir_news.summarizer import build_prompt, validate_analysis
+from palantir_news.summarizer import build_prompt, normalize_newsletter, validate_analysis
 
 
 def test_prompt_requests_concrete_mechanism_and_evidence():
@@ -93,3 +93,17 @@ def test_newsletter_requires_substance_and_known_source_heading():
     result["newsletter"]["sections"][0]["source_heading"] = "Invented"
     with pytest.raises(ValueError, match="unknown source heading"):
         validate_analysis(article, result)
+
+
+def test_normalize_newsletter_uses_only_exact_body_sentences():
+    newsletter = {
+        "lead": ["Palantir는 여러 데이터의 의미를 연결해 공통 기준을 만듭니다. 다른 앱에서도 같은 정의를 재사용합니다.",
+                 "운영팀은 바뀐 객체 정의를 한곳에서 관리합니다."],
+        "sections": [{"source_heading": "Invented", "paragraphs": ["업무 담당자는 연결된 기록을 확인합니다."]}],
+        "closing": "실제 성과 수치는 아직 확인되지 않았습니다.",
+        "highlights": ["모델이 새로 만든 문장입니다."],
+    }
+    normalize_newsletter({"source_headings": ["Real heading"]}, newsletter)
+    assert newsletter["sections"][0]["source_heading"] == ""
+    assert len(newsletter["highlights"]) == 2
+    assert all(sentence in " ".join(newsletter["lead"]) for sentence in newsletter["highlights"])

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 from openai import OpenAI
@@ -26,6 +27,36 @@ UNREADABLE_SUMMARY_MARKERS = (
     "보안 검증 페이지",
     "원문 본문",
 )
+
+
+def normalize_newsletter(article: dict[str, Any], newsletter: dict[str, Any]) -> None:
+    """Anchor optional emphasis and image links to text the model actually wrote."""
+    allowed_headings = set(article.get("source_headings") or [])
+    sections = newsletter.get("sections") or []
+    for section in sections:
+        if isinstance(section, dict) and section.get("source_heading") not in allowed_headings:
+            section["source_heading"] = ""
+    paragraphs = (newsletter.get("lead") or []) + [
+        paragraph for section in sections if isinstance(section, dict)
+        for paragraph in (section.get("paragraphs") or [])
+    ] + [newsletter.get("closing") or ""]
+    candidates = []
+    for paragraph in paragraphs:
+        if not isinstance(paragraph, str):
+            continue
+        for sentence in re.split(r"(?<=[.!?])\s+", paragraph.strip()):
+            sentence = sentence.strip()
+            if 30 <= len(sentence) <= 180 and sentence.endswith((".", "?", "!")) and sentence not in candidates:
+                candidates.append(sentence)
+    requested = newsletter.get("highlights") or []
+    selected = [sentence for sentence in requested if sentence in candidates]
+    selected = list(dict.fromkeys(selected))[:3]
+    for sentence in candidates:
+        if len(selected) >= 2:
+            break
+        if sentence not in selected:
+            selected.append(sentence)
+    newsletter["highlights"] = selected
 
 
 def validate_analysis(article: dict[str, Any], result: dict[str, Any]) -> None:
@@ -156,5 +187,7 @@ def summarize(article: dict[str, Any], api_key: str | None = None, model: str | 
     if not required.issubset(result):
         raise ValueError(f"Incomplete analysis response: {required - set(result)}")
     result["importance"] = max(1, min(10, int(result["importance"])))
+    if isinstance(result.get("newsletter"), dict):
+        normalize_newsletter(article, result["newsletter"])
     validate_analysis(article, result)
     return result
