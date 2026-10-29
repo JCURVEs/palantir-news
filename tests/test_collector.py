@@ -42,6 +42,29 @@ def test_official_feed_supplies_recent_article_body_and_headings():
     assert "Detailed Palantir explanation." in result["abcdef123456"]["body"]
 
 
+def test_tag_feed_adds_older_articles_without_replacing_publication_entry():
+    class FakeResponse:
+        def __init__(self, article_id):
+            self.content = (f'<rss xmlns:content="http://purl.org/rss/1.0/modules/content/">'
+                            f'<channel><item><link>https://blog.palantir.com/post-{article_id}</link>'
+                            f'<content:encoded><![CDATA[<p>{"Details " * 40}</p>]]></content:encoded>'
+                            '</item></channel></rss>').encode()
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        def get(self, url, timeout):
+            assert timeout == 30
+            if url.endswith("/feed"):
+                return FakeResponse("abcdef123456")
+            assert url.endswith("/feed/tagged/data%20platform")
+            return FakeResponse("123456abcdef")
+
+    bodies = fetch_feed_bodies(FakeSession(), ["data platform", "data platform"])
+    assert set(bodies) == {"abcdef123456", "123456abcdef"}
+
+
 def test_parse_article_uses_json_ld_publication_date():
     html = """
     <html><head><script type="application/ld+json">

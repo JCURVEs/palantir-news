@@ -109,6 +109,21 @@ def test_recent_rss_body_takes_priority_over_blocked_archive_refresh():
     )] == ["feed"]
 
 
+def test_prefetched_source_is_private_and_reusable(tmp_path, monkeypatch):
+    item = article("abcdef123456", "2021-01-01T00:00:00Z")
+    records = {item["id"]: item}
+    monkeypatch.setattr(cli, "build_session", lambda: object())
+    monkeypatch.setattr(cli, "fetch_article", lambda url, session: {
+        "body": "Detailed source content. " * 20,
+        "source_headings": ["Implementation"],
+    })
+    assert cli.prefetch_source_bodies(records, tmp_path, 1) == (1, 0)
+    cached = cli.load_source_cache(tmp_path, item)
+    assert cached["source_headings"] == ["Implementation"]
+    assert len(cached["body"]) > 200
+    assert cli.prefetch_source_bodies(records, tmp_path, 1) == (0, 0)
+
+
 def test_rate_limit_retry_waits_then_succeeds(monkeypatch):
     calls = []
     waits = []

@@ -61,6 +61,53 @@ def save_index(path: Path, records: dict[str, dict[str, Any]]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def source_cache_path(root: Path, article_id: str) -> Path:
+    return root / ".cache" / "source_bodies" / f"{article_id}.json"
+
+
+def load_source_cache(root: Path, article: dict[str, Any]) -> dict[str, Any] | None:
+    path = source_cache_path(root, article["id"])
+    if not path.exists():
+        return None
+    cached = json.loads(path.read_text(encoding="utf-8"))
+    if cached.get("url") != article["url"] or not has_readable_body(cached.get("body", "")):
+        return None
+    return cached
+
+
+def prefetch_source_bodies(records: dict[str, dict[str, Any]], root: Path, workers: int) -> tuple[int, int]:
+    """Cache source text locally for grounded backfill without publishing it."""
+    pending = [item for item in records.values() if not (item.get("analysis") or {}).get("newsletter")]
+    pending = [item for item in pending if load_source_cache(root, item) is None]
+
+    def fetch(item: dict[str, Any]) -> dict[str, Any]:
+        fetched = fetch_article(item["url"], build_session())
+        if not has_readable_body(fetched.get("body", "")):
+            fetched["body"] = fetch_reader_text(item["url"], build_session())
+        return fetched
+
+    succeeded = failed = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(fetch, item): item for item in pending}
+        for future in as_completed(futures):
+            item = futures[future]
+            try:
+                fetched = future.result()
+                payload = {
+                    "url": item["url"],
+                    "body": fetched["body"],
+                    "source_headings": fetched.get("source_headings", []),
+                }
+                path = source_cache_path(root, item["id"])
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+                succeeded += 1
+            except Exception as exc:
+                failed += 1
+                print(f"::warning::Source prefetch failed for {item['id']}: {type(exc).__name__}: {exc}")
+    return succeeded, failed
+
+
 def apply_editorial_overrides(records: dict[str, dict[str, Any]], directory: Path) -> int:
     """Keep manually reviewed newsletters in the same index as generated ones."""
     applied = 0
@@ -165,7 +212,7 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int, feed_ids: set
         published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00"))
         newest_first = -published.timestamp()
         if item["id"] in (feed_ids or set()):
-            return (-1, newest_first)
+            return (0 if item.get("analysis_error") else -1, newest_first)
         if status != "complete":
             if status != "failed" and published >= recent_cutoff:
                 return (0, newest_first)
@@ -204,6 +251,7 @@ def analyze_pending(
     api_key: str,
     pause_seconds: float,
     feed_bodies: dict[str, dict[str, Any]] | None = None,
+    cache_root: Path | None = None,
 ) -> None:
     for number, article in enumerate(pending, start=1):
         if number > 1 and pause_seconds > 0:
@@ -211,10 +259,12 @@ def analyze_pending(
         rate_limited = False
         was_complete = article.get("analysis_status") == "complete"
         try:
-            feed_article = (feed_bodies or {}).get(article["id"])
-            if feed_article:
-                article["body"] = feed_article["body"]
-                article["source_headings"] = feed_article["source_headings"]
+            source = (feed_bodies or {}).get(article["id"])
+            if not source and cache_root:
+                source = load_source_cache(cache_root, article)
+            if source:
+                article["body"] = source["body"]
+                article["source_headings"] = source["source_headings"]
             if not article.get("body"):
                 try:
                     fetched = fetch_article(article["url"], build_session())
@@ -260,6 +310,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--collect-only", action="store_true")
     parser.add_argument("--media-limit", type=int, default=0, help="Backfill images for this many existing posts; 0 disables backfill")
     parser.add_argument("--media-only", action="store_true", help="Skip sitemap collection and AI analysis while backfilling images")
+    parser.add_argument("--prefetch-sources", action="store_true", help="Cache missing source bodies locally; never commit source text")
     parser.add_argument("--refresh", action="store_true", help="Refetch already indexed article pages")
     return parser.parse_args()
 
@@ -271,6 +322,10 @@ def main() -> int:
     failure_path = root / "data" / "collection_failures.txt"
     ignored_path = root / "data" / "out_of_scope_urls.txt"
     records = {} if args.refresh else load_index(index_path)
+    if args.prefetch_sources:
+        succeeded, failed = prefetch_source_bodies(records, root, max(1, min(args.workers, 8)))
+        print(f"Source bodies cached locally: {succeeded}; failed: {failed}")
+        return 0
     ignored_urls = set()
     if ignored_path.exists() and not args.refresh:
         ignored_urls = {line.strip() for line in ignored_path.read_text(encoding="utf-8").splitlines() if line.strip()}
@@ -303,19 +358,25 @@ def main() -> int:
     feed_bodies = {}
     if not args.collect_only and not args.media_only:
         try:
-            feed_bodies = fetch_feed_bodies(build_session())
+            tag_path = root / "data" / "feed_tags.txt"
+            tags = [line.strip() for line in tag_path.read_text(encoding="utf-8").splitlines() if line.strip()] if tag_path.exists() else []
+            feed_bodies = fetch_feed_bodies(build_session(), tags[datetime.now(timezone.utc).hour % 3::3])
         except Exception as exc:
             print(f"::warning::Official RSS body fetch failed: {type(exc).__name__}: {exc}")
+    cache_ids = {
+        article_id for article_id, article in records.items()
+        if source_cache_path(root, article_id).exists() and load_source_cache(root, article)
+    }
     if args.article_id:
         if args.article_id not in records:
             raise SystemExit(f"Article not found in index: {args.article_id}")
         pending = [records[args.article_id]]
     else:
-        pending = select_pending(records, args.analysis_limit, set(feed_bodies))
+        pending = select_pending(records, args.analysis_limit, set(feed_bodies) | cache_ids)
 
     key = os.getenv("GROQ_API_KEY")
     if not args.collect_only and not args.media_only and key:
-        analyze_pending(pending, records, index_path, key, args.analysis_pause_seconds, feed_bodies)
+        analyze_pending(pending, records, index_path, key, args.analysis_pause_seconds, feed_bodies, root)
     elif not args.collect_only and not args.media_only and pending:
         print(f"GROQ_API_KEY is not configured; {len(pending)} articles remain pending")
 
@@ -323,9 +384,10 @@ def main() -> int:
     save_index(index_path, records)
     archived = rebuild_archives(records.values(), root / "archive")
     complete = sum(item.get("analysis_status") == "complete" for item in records.values())
+    newsletters = sum(bool((item.get("analysis") or {}).get("newsletter")) for item in records.values())
     print(
         f"Indexed {len(records)} posts from {args.start_year}-{args.end_year}; "
-        f"analyzed {complete}; archived {archived}; fetch failures {len(failures)}"
+        f"analyzed {complete}; newsletters {newsletters}/{len(records)}; archived {archived}; fetch failures {len(failures)}"
     )
     return 0
 

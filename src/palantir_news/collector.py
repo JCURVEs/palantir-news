@@ -6,7 +6,7 @@ import json
 import re
 from datetime import datetime, timezone
 from typing import Any, Iterable
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 import requests
@@ -278,29 +278,38 @@ def fetch_reader_text(url: str, session: requests.Session | None = None) -> str:
     return text
 
 
-def fetch_feed_bodies(session: requests.Session | None = None) -> dict[str, dict[str, Any]]:
-    """Use recent full-text official RSS entries when article pages block CI."""
+def fetch_feed_bodies(
+    session: requests.Session | None = None, tags: Iterable[str] = (),
+) -> dict[str, dict[str, Any]]:
+    """Read full-text entries from the publication and selected official tag feeds."""
     client = session or build_session()
-    response = client.get(FEED_URL, timeout=30)
-    response.raise_for_status()
-    root = ElementTree.fromstring(response.content)
     content_tag = "{http://purl.org/rss/1.0/modules/content/}encoded"
     articles = {}
-    for item in root.findall(".//item"):
-        article_id = article_id_from_url(item.findtext("link") or "")
-        html = item.findtext(content_tag) or ""
-        if not article_id or not html:
+    for url in [FEED_URL, *(f"{FEED_URL}/tagged/{quote(tag, safe='')}" for tag in dict.fromkeys(tags))]:
+        try:
+            response = client.get(url, timeout=30)
+            response.raise_for_status()
+            root = ElementTree.fromstring(response.content)
+        except (requests.RequestException, ElementTree.ParseError) as exc:
+            if url == FEED_URL:
+                raise
+            print(f"::warning::Tag feed unavailable ({url}): {type(exc).__name__}: {exc}")
             continue
-        soup = BeautifulSoup(html, "html.parser")
-        body = _clean_text(soup.get_text(" ", strip=True))
-        if has_readable_body(body):
-            articles[article_id] = {
-                "body": body,
-                "source_headings": [
-                    _clean_text(heading.get_text(" ", strip=True))
-                    for heading in soup.find_all(["h2", "h3"])
-                ],
-            }
+        for item in root.findall(".//item"):
+            article_id = article_id_from_url(item.findtext("link") or "")
+            html = item.findtext(content_tag) or ""
+            if not article_id or not html or article_id in articles:
+                continue
+            soup = BeautifulSoup(html, "html.parser")
+            body = _clean_text(soup.get_text(" ", strip=True))
+            if has_readable_body(body):
+                articles[article_id] = {
+                    "body": body,
+                    "source_headings": [
+                        _clean_text(heading.get_text(" ", strip=True))
+                        for heading in soup.find_all(["h2", "h3"])
+                    ],
+                }
     return articles
 
 
