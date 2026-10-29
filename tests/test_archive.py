@@ -87,7 +87,7 @@ def test_archive_includes_detailed_analysis_and_inline_images(tmp_path):
     content = archive_path(tmp_path, article["published_at"]).read_text(encoding="utf-8")
     assert "**핵심 내용:**" in content
     assert "**기술 해설:**" in content
-    assert "![원문 이미지 1](https://miro.medium.com/diagram.png)" in content
+    assert "![Palantir 이미지 1](https://miro.medium.com/diagram.png)" in content
 
 
 def test_archive_places_newsletter_image_in_matching_section(tmp_path):
@@ -102,10 +102,10 @@ def test_archive_places_newsletter_image_in_matching_section(tmp_path):
     rebuild_archives([article], tmp_path)
     content = archive_path(tmp_path, article["published_at"]).read_text(encoding="utf-8")
     heading = content.index("### 계좌와 거래를 연결하는 방법")
-    image = content.index("![원문 이미지 1](https://miro.medium.com/diagram.png)")
+    image = content.index("![Palantir 이미지 1](https://miro.medium.com/diagram.png)")
     closing = content.index("### 정리하면")
     assert heading < image < closing
-    assert content.count("![원문 이미지 1]") == 1
+    assert content.count("![Palantir 이미지 1]") == 1
 
 
 def test_reviewed_articles_match_their_archives():

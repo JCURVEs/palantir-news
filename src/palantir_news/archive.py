@@ -21,7 +21,7 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         "",
         f"**분야:** {analysis['category']} | **중요도:** {analysis['importance']}점",
         "",
-        f"**원문발행일:** {article['published_at']}",
+        f"**Palantir 발행일:** {article['published_at']}",
         "",
         f"**수집일:** {collected_on}",
         "",
@@ -37,7 +37,7 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         for paragraph in newsletter["lead"]:
             lines.extend([paragraph, ""])
         if article.get("image_url"):
-            lines.extend([f"![원문 대표 이미지]({article['image_url']})", ""])
+            lines.extend([f"![Palantir 대표 이미지]({article['image_url']})", ""])
         for section in newsletter["sections"]:
             lines.extend([f"### {section['heading']}", ""])
             for paragraph in section["paragraphs"]:
@@ -45,7 +45,7 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
             for index, image in enumerate(images):
                 if index in used_images or not section.get("source_heading") or image.get("section") != section["source_heading"]:
                     continue
-                lines.extend([f"![원문 이미지 {index + 1}]({image['url']})", ""])
+                lines.extend([f"![Palantir 이미지 {index + 1}]({image['url']})", ""])
                 if image.get("caption"):
                     lines.extend([image["caption"], ""])
                 used_images.add(index)
@@ -62,16 +62,16 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         "",
         f"**출처:** {article['url']}",
         "",
-        f"**원문제목:** {article['title']}",
+        f"**Palantir 제목:** {article['title']}",
         "",
     ])
     if article.get("image_url") and not newsletter:
-        lines.extend([f"![원문 대표 이미지]({article['image_url']})", ""])
+        lines.extend([f"![Palantir 대표 이미지]({article['image_url']})", ""])
     remaining_images = [(index, image) for index, image in enumerate(images) if index not in used_images]
     if remaining_images:
-        lines.extend(["**원문 속 이미지:**", ""])
+        lines.extend(["**Palantir가 제시한 이미지:**", ""])
         for index, image in remaining_images:
-            lines.extend([f"![원문 이미지 {index + 1}]({image['url']})", ""])
+            lines.extend([f"![Palantir 이미지 {index + 1}]({image['url']})", ""])
             if image.get("caption"):
                 lines.extend([image["caption"], ""])
     return "\n".join(lines)

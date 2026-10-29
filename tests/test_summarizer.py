@@ -56,6 +56,18 @@ def test_short_announcement_can_have_concise_grounded_summary():
     validate_analysis(article, result)
 
 
+def test_reader_facing_copy_names_palantir_instead_of_the_source_text():
+    article = {"body": "A short factual announcement."}
+    result = {
+        "title_ko": "제품 발표",
+        "summary": "원문은 새 제품의 사용 대상을 설명합니다.",
+        "easy_explainer": "Palantir가 새 제품을 발표했습니다.",
+        "category": "기업/파트너십",
+    }
+    with pytest.raises(ValueError, match="describe Palantir directly"):
+        validate_analysis(article, result)
+
+
 def test_newsletter_requires_substance_and_known_source_heading():
     article = {"body": "Detailed source evidence. " * 100, "source_headings": ["Implementation"]}
     paragraph = "조직은 데이터와 업무 개념을 연결해 공통 기준을 세웁니다. 여러 애플리케이션이 같은 객체 정의를 재사용해 해석 작업을 줄입니다. " * 5
@@ -66,7 +78,7 @@ def test_newsletter_requires_substance_and_known_source_heading():
         "newsletter": {
             "dek": "데이터를 업무 개념에 연결하는 방법을 살펴봅니다.",
             "lead": [paragraph, paragraph],
-            "highlights": ["조직은 데이터와 업무 개념을 연결해 공통 기준을 세웁니다.", "원문에 없는 문장을 모델이 새로 지어낸 경우에는 하이라이트로 발행하면 안 됩니다."],
+            "highlights": ["조직은 데이터와 업무 개념을 연결해 공통 기준을 세웁니다.", "모델이 근거 없이 만든 문장을 그대로 하이라이트에 넣으면 안 됩니다."],
             "sections": [
                 {"heading": "서로 다른 데이터를 같은 객체로 연결", "source_heading": "Implementation", "paragraphs": [paragraph]},
                 {"heading": "업무 앱에서 정의를 재사용", "source_heading": "", "paragraphs": [paragraph]},
