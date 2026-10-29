@@ -9,8 +9,7 @@ def test_prompt_requests_concrete_mechanism_and_evidence():
     assert "어떤 문제를 어떤 방식으로 풀었나" in prompt
     assert "실측 성과와 계획/예상 효과를 구별" in prompt
     assert "Source detail" in prompt
-    assert "key_points" in prompt
-    assert "technical_detail" in prompt
+    assert "newsletter" in prompt
 
 
 def test_prompt_keeps_end_of_long_article():
@@ -55,3 +54,26 @@ def test_short_announcement_can_have_concise_grounded_summary():
     }
 
     validate_analysis(article, result)
+
+
+def test_newsletter_requires_substance_and_known_source_heading():
+    article = {"body": "Detailed source evidence. " * 100, "source_headings": ["Implementation"]}
+    paragraph = "조직은 데이터와 업무 개념을 연결하고, 여러 애플리케이션이 같은 객체 정의를 재사용합니다. " * 5
+    result = {
+        "summary": paragraph * 2,
+        "easy_explainer": paragraph,
+        "category": "데이터 플랫폼",
+        "newsletter": {
+            "dek": "데이터를 업무 개념에 연결하는 방법을 살펴봅니다.",
+            "lead": [paragraph, paragraph],
+            "sections": [
+                {"heading": "서로 다른 데이터를 같은 객체로 연결", "source_heading": "Implementation", "paragraphs": [paragraph]},
+                {"heading": "업무 앱에서 정의를 재사용", "source_heading": "", "paragraphs": [paragraph]},
+            ],
+            "closing": paragraph,
+        },
+    }
+    validate_analysis(article, result)
+    result["newsletter"]["sections"][0]["source_heading"] = "Invented"
+    with pytest.raises(ValueError, match="unknown source heading"):
+        validate_analysis(article, result)

@@ -117,6 +117,7 @@ def enrich_media(records: dict[str, dict[str, Any]], index_path: Path, limit: in
             try:
                 fetched = future.result()
                 item["inline_images"] = fetched.get("inline_images", [])
+                item["source_headings"] = fetched.get("source_headings", [])
                 if fetched.get("image_url") and not item.get("image_url"):
                     item["image_url"] = fetched["image_url"]
                 item["media_checked_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -145,10 +146,10 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[
         if status != "complete":
             if status != "failed" and published >= recent_cutoff:
                 return (0, newest_first)
-            return (2 if status != "failed" else 3, newest_first)
+            return (2 if status != "failed" else 4, newest_first)
         summary = str((item.get("analysis") or {}).get("summary", ""))
         needs_review = len(summary) < 180 or any(phrase in summary for phrase in LOW_INFORMATION_PHRASES)
-        return (1 if needs_review else 4, newest_first)
+        return (1 if needs_review else 3, newest_first)
 
     pending.sort(key=priority)
     return pending[:limit] if limit > 0 else pending
@@ -186,7 +187,11 @@ def analyze_pending(
         try:
             if not article.get("body"):
                 try:
-                    article["body"] = fetch_article(article["url"], build_session())["body"]
+                    fetched = fetch_article(article["url"], build_session())
+                    article["body"] = fetched["body"]
+                    article["source_headings"] = fetched.get("source_headings", [])
+                    if not article.get("inline_images"):
+                        article["inline_images"] = fetched.get("inline_images", [])
                 except Exception:
                     article["body"] = fetch_reader_text(article["url"], build_session())
             if not has_readable_body(article["body"]):
@@ -220,6 +225,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--analysis-limit", type=int, default=0, help="Maximum pending posts to analyze; 0 means all")
     parser.add_argument("--analysis-pause-seconds", type=float, default=0, help="Pause between analysis requests")
+    parser.add_argument("--article-id", help="Analyze one existing article ID, including a previously completed post")
     parser.add_argument("--collect-only", action="store_true")
     parser.add_argument("--media-limit", type=int, default=0, help="Backfill images for this many existing posts; 0 disables backfill")
     parser.add_argument("--media-only", action="store_true", help="Skip sitemap collection and AI analysis while backfilling images")
@@ -262,7 +268,12 @@ def main() -> int:
         failure_path.write_text("\n".join(failures) + ("\n" if failures else ""), encoding="utf-8")
     write_catalog(root / "CATALOG.md", records)
 
-    pending = select_pending(records, args.analysis_limit)
+    if args.article_id:
+        if args.article_id not in records:
+            raise SystemExit(f"Article not found in index: {args.article_id}")
+        pending = [records[args.article_id]]
+    else:
+        pending = select_pending(records, args.analysis_limit)
 
     key = os.getenv("GROQ_API_KEY")
     if not args.collect_only and not args.media_only and key:

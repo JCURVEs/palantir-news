@@ -29,6 +29,27 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         str(analysis["summary"]),
         "",
     ]
+    newsletter = analysis.get("newsletter")
+    used_images: set[int] = set()
+    images = article.get("inline_images") or []
+    if newsletter:
+        lines.extend(["**뉴스레터 본문:**", "", f"*{newsletter['dek']}*", ""])
+        for paragraph in newsletter["lead"]:
+            lines.extend([paragraph, ""])
+        if article.get("image_url"):
+            lines.extend([f"![원문 대표 이미지]({article['image_url']})", ""])
+        for section in newsletter["sections"]:
+            lines.extend([f"### {section['heading']}", ""])
+            for paragraph in section["paragraphs"]:
+                lines.extend([paragraph, ""])
+            for index, image in enumerate(images):
+                if index in used_images or not section.get("source_heading") or image.get("section") != section["source_heading"]:
+                    continue
+                lines.extend([f"![원문 이미지 {index + 1}]({image['url']})", ""])
+                if image.get("caption"):
+                    lines.extend([image["caption"], ""])
+                used_images.add(index)
+        lines.extend(["### 정리하면", "", newsletter["closing"], ""])
     if analysis.get("key_points"):
         lines.extend(["**핵심 내용:**", ""])
         lines.extend(f"- {point}" for point in analysis["key_points"])
@@ -44,12 +65,13 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         f"**원문제목:** {article['title']}",
         "",
     ])
-    if article.get("image_url"):
+    if article.get("image_url") and not newsletter:
         lines.extend([f"![원문 대표 이미지]({article['image_url']})", ""])
-    if article.get("inline_images"):
+    remaining_images = [(index, image) for index, image in enumerate(images) if index not in used_images]
+    if remaining_images:
         lines.extend(["**원문 속 이미지:**", ""])
-        for number, image in enumerate(article["inline_images"], start=1):
-            lines.extend([f"![원문 이미지 {number}]({image['url']})", ""])
+        for index, image in remaining_images:
+            lines.extend([f"![원문 이미지 {index + 1}]({image['url']})", ""])
             if image.get("caption"):
                 lines.extend([image["caption"], ""])
     return "\n".join(lines)

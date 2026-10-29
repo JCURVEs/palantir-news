@@ -10,7 +10,7 @@ from openai import OpenAI
 
 
 DEFAULT_MODEL = "qwen/qwen3.8-27b"
-ANALYSIS_VERSION = 3
+ANALYSIS_VERSION = 4
 CATEGORIES = (
     "AI/에이전트",
     "데이터 플랫폼",
@@ -42,6 +42,30 @@ def validate_analysis(article: dict[str, Any], result: dict[str, Any]) -> None:
     points = result.get("key_points")
     if points is not None and (not isinstance(points, list) or not 2 <= len(points) <= 5 or any(not isinstance(point, str) or len(point.strip()) < 20 for point in points)):
         raise ValueError("Key points must contain 2-5 substantive Korean facts")
+    newsletter = result.get("newsletter")
+    if newsletter is not None:
+        if not isinstance(newsletter, dict) or len(str(newsletter.get("dek", "")).strip()) < 20:
+            raise ValueError("Newsletter is missing its subtitle")
+        lead = newsletter.get("lead")
+        sections = newsletter.get("sections")
+        if not isinstance(lead, list) or len(lead) != 2 or any(not isinstance(p, str) or len(p.strip()) < 40 for p in lead):
+            raise ValueError("Newsletter needs two substantive lead paragraphs")
+        if not isinstance(sections, list) or not 2 <= len(sections) <= 5:
+            raise ValueError("Newsletter needs 2-5 sections")
+        for section in sections:
+            paragraphs = section.get("paragraphs") if isinstance(section, dict) else None
+            if not isinstance(section, dict) or len(str(section.get("heading", "")).strip()) < 8 or not isinstance(paragraphs, list) or not 1 <= len(paragraphs) <= 3 or any(not isinstance(p, str) or len(p.strip()) < 40 for p in paragraphs):
+                raise ValueError("Newsletter section is missing a specific heading or supporting detail")
+            source_heading = section.get("source_heading") or ""
+            if source_heading and source_heading not in (article.get("source_headings") or []):
+                raise ValueError("Newsletter references an unknown source heading")
+        if len(str(newsletter.get("closing", "")).strip()) < 40:
+            raise ValueError("Newsletter needs a grounded closing paragraph")
+        newsletter_length = sum(len(p) for p in lead) + sum(len(p) for section in sections for p in section["paragraphs"]) + len(newsletter["closing"])
+        if body_length >= 1500 and newsletter_length < 800:
+            raise ValueError("Newsletter is too thin for the available source article")
+        if any(marker in json.dumps(newsletter, ensure_ascii=False) for marker in UNREADABLE_SUMMARY_MARKERS):
+            raise ValueError("Newsletter describes a blocked page instead of the article")
 
 
 def build_prompt(article: dict[str, Any]) -> str:
@@ -62,12 +86,19 @@ def build_prompt(article: dict[str, Any]) -> str:
 - '혁신', '극대화', '변혁' 같은 홍보 문구와 '이 글은 ~를 다룹니다' 같은 메타 설명을 피하라.
 - 요약은 서로 다른 사실을 담은 5~7문장으로 작성하되, 짧은 원문을 억지로 늘리지 마라.
 - 쉬운 설명은 추상적 비유 대신 원문의 실제 사례를 일상어로 풀어라. 요약에 없는 성과를 덧붙이지 마라.
-- 핵심 내용은 원문에 근거한 서로 다른 사실 2~5개로 나눠 적어라. 각 항목은 행위 주체와 동작 또는 근거를 포함하라.
-- 기술 해설은 데이터가 들어와 처리되고 실제 업무에 쓰이는 흐름을 2~4문장으로 설명하라. 원문에 구현 정보가 부족하면 빈 문자열로 두라.
+- 뉴스레터 본문은 도입 2문단, 구체적 소제목 2~5개와 각각 1~3문단, 마무리 1문단으로 쓴다.
+- 제목은 원문 근거가 있을 때 질문형이나 대비형으로 쓰고, 부제는 무엇을 어떻게 살피는지 한 문장으로 적는다.
+- 도입 첫 문단에서 실제 문제나 장면을 제시하고, 둘째 문단에서 이 글의 핵심 질문과 취재 출처를 밝힌다.
+- 소제목에는 그 절에서 설명할 내용이 드러나야 한다. '핵심 기술', '의미와 전망' 같은 빈 제목을 피하라.
+- 기술 용어 옆에는 쉬운 풀이를 붙이고, 메커니즘과 원문의 사례를 문단으로 연결한다. 목록만 나열하지 마라.
+- 마무리는 검증된 의미와 아직 확인되지 않은 범위를 구분한다. 근거 없이 미래 성과를 예언하지 마라.
+- 이 원문이 인터뷰가 아니면 문답, 직접 인용, 가상의 인물을 만들지 마라. 원문을 길게 번역하거나 베끼지 말고 독자적인 한국어 해설로 재구성하라.
+- 이미지의 내용을 보지 못했으므로 이미지를 해석하지 마라. source_heading은 아래 원문 소제목과 정확히 일치할 때만 넣어라.
 
 제목: {article.get('title', '')}
 발행일: {article.get('published_at', '')}
 원문 설명: {article.get('description', '')}
+원문 소제목: {json.dumps(article.get('source_headings') or [], ensure_ascii=False)}
 원문 본문:
 {body}
 
@@ -75,8 +106,14 @@ JSON 객체 하나만 반환하라:
 {{
   "title_ko": "자연스럽고 사실적인 한국어 제목",
   "summary": "문제, 작동 방식, 원문 사례와 근거, 확인된 결과 또는 남은 과제를 담은 한국어 요약",
-  "key_points": ["원문에서 확인되는 구체적인 핵심 사실 1", "핵심 사실 2", "핵심 사실 3"],
-  "technical_detail": "원문에서 확인되는 구현 또는 업무 흐름의 추가 설명. 정보가 부족하면 빈 문자열",
+  "newsletter": {{
+    "dek": "기술 주제와 독자가 얻을 관점을 담은 한 문장 부제",
+    "lead": ["문제나 장면을 보여주는 2~3문장", "이 글의 질문과 공식 원문 맥락을 알려주는 2~3문장"],
+    "sections": [
+      {{"heading": "내용이 드러나는 구체적 소제목", "source_heading": "일치하는 원문 소제목 또는 빈 문자열", "paragraphs": ["원문 근거가 있는 2~3문장", "작동 방식이나 사례를 풀어주는 2~3문장"]}}
+    ],
+    "closing": "확인된 의미와 남은 한계를 구분하는 2~3문장"
+  }},
   "easy_explainer": "원문의 실제 사례를 바탕으로 비전문가도 이해할 수 있게 쓴 1~2문장",
   "category": "{('|'.join(CATEGORIES))} 중 하나",
   "importance": 1부터 10 사이 정수
@@ -95,10 +132,10 @@ def summarize(article: dict[str, Any], api_key: str | None = None, model: str | 
         messages=[{"role": "user", "content": build_prompt(article)}],
         response_format={"type": "json_object"},
         temperature=0.2,
-        max_tokens=1900,
+        max_tokens=3500,
     )
     result = json.loads(response.choices[0].message.content or "{}")
-    required = {"title_ko", "summary", "key_points", "technical_detail", "easy_explainer", "category", "importance"}
+    required = {"title_ko", "summary", "newsletter", "easy_explainer", "category", "importance"}
     if not required.issubset(result):
         raise ValueError(f"Incomplete analysis response: {required - set(result)}")
     result["importance"] = max(1, min(10, int(result["importance"])))

@@ -70,6 +70,15 @@ def test_select_pending_works_from_newest_historical_post():
     assert [item["id"] for item in cli.select_pending(records, 3)] == ["2026", "2025", "2024"]
 
 
+def test_failed_source_does_not_starve_newsletter_refresh():
+    reviewed = article("reviewed", "2024-01-01T00:00:00Z", "complete")
+    reviewed["analysis_version"] = cli.ANALYSIS_VERSION - 1
+    reviewed["analysis"] = {"summary": "구체적 근거를 담은 기존 요약입니다. " * 12}
+    failed = article("failed", "2026-01-01T00:00:00Z", "failed")
+    records = {item["id"]: item for item in (failed, reviewed)}
+    assert [item["id"] for item in cli.select_pending(records, 2)] == ["reviewed", "failed"]
+
+
 def test_rate_limit_retry_waits_then_succeeds(monkeypatch):
     calls = []
     waits = []
@@ -131,3 +140,25 @@ def test_failed_refresh_keeps_the_published_summary(monkeypatch, tmp_path):
     assert saved["analysis"]["summary"] == "Reviewed original summary"
     assert saved["analysis_version"] == 1
     assert "body" not in saved
+
+
+def test_analyze_pending_passes_source_headings_and_images(monkeypatch, tmp_path):
+    item = article("example", "2026-01-01T00:00:00Z")
+    records = {item["id"]: item}
+    monkeypatch.setattr(cli, "build_session", lambda: None)
+    monkeypatch.setattr(cli, "fetch_article", lambda url, session: {
+        "body": "Source text " * 30,
+        "source_headings": ["Implementation"],
+        "inline_images": [{"url": "https://miro.medium.com/diagram.png", "section": "Implementation"}],
+    })
+
+    def summarize(current, key):
+        assert current["source_headings"] == ["Implementation"]
+        return {"summary": "Grounded explanation"}
+
+    monkeypatch.setattr(cli, "summarize_with_rate_limit_retry", summarize)
+    path = tmp_path / "articles.jsonl"
+    cli.analyze_pending([item], records, path, "test-key", 0)
+    saved = cli.load_index(path)["example"]
+    assert saved["source_headings"] == ["Implementation"]
+    assert saved["inline_images"][0]["section"] == "Implementation"

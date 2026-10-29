@@ -168,6 +168,10 @@ def parse_article_html(url: str, html: str) -> dict[str, Any]:
         "author": _clean_text(str(author.get("name", "Palantir"))) if isinstance(author, dict) else "Palantir",
         "image_url": cover_url,
         "inline_images": _html_inline_images(article, cover_url) if article else [],
+        "source_headings": [
+            _clean_text(node.get_text(" ", strip=True))
+            for node in article.find_all(["h2", "h3"])
+        ] if article else [],
         "body": body,
         "analysis": None,
         "analysis_status": "pending",
@@ -184,7 +188,16 @@ def parse_medium_json(url: str, raw: str) -> dict[str, Any]:
     content = value.get("content") or {}
     body_model = content.get("bodyModel") or {}
     paragraphs = body_model.get("paragraphs") or []
-    body = _clean_text(" ".join(str(item.get("text", "")) for item in paragraphs))
+    body = "\n\n".join(
+        ("## " if item.get("type") == 3 else "") + text
+        for item in paragraphs
+        if (text := _clean_text(str(item.get("text", ""))))
+    )
+    source_headings = [
+        _clean_text(str(item.get("text", "")))
+        for item in paragraphs
+        if item.get("type") == 3 and item.get("text")
+    ]
     virtuals = value.get("virtuals") or {}
     preview = virtuals.get("previewImage") or {}
     image_id = str(preview.get("imageId", ""))
@@ -215,6 +228,7 @@ def parse_medium_json(url: str, raw: str) -> dict[str, Any]:
         "author": "Palantir",
         "image_url": image_url,
         "inline_images": inline_images,
+        "source_headings": source_headings,
         "body": body,
         "analysis": None,
         "analysis_status": "pending",

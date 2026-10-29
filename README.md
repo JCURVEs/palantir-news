@@ -4,17 +4,17 @@
 
 Palantir News는 팔란티어의 공식 발표와 엔지니어링 글에서 기술의 작동 방식과 현장 사례를 골라 한국어로 전하는 독립 큐레이터 채널입니다. 제품 이름만 나열하기보다, 어떤 문제를 풀려고 만들었고 실제 업무에서 어떻게 쓰이는지 살펴봅니다.
 
-**[Palantir News 사이트에서 읽기](https://palantir-news-jcurves.truelyric17.chatgpt.site/)**
+**[Palantir News 사이트에서 읽기](https://palantir-news-jcurves.ysinter.chatgpt.site/)**
 
-[![도시와 물류 현장을 잇는 데이터 흐름을 표현한 Palantir News 커버](assets/palantir-news-cover.png)](https://palantir-news-jcurves.truelyric17.chatgpt.site/)
+[![도시와 물류 현장을 잇는 데이터 흐름을 표현한 Palantir News 커버](assets/palantir-news-cover.png)](https://palantir-news-jcurves.ysinter.chatgpt.site/)
 
 ## 골라 읽는 기술 이야기
 
-- [데이터 접근 권한에 '왜'를 남기는 방법](https://palantir-news-jcurves.truelyric17.chatgpt.site/article.html?id=f419faa400b3) ([영문 원문](https://blog.palantir.com/purpose-based-access-controls-at-palantir-f419faa400b3)): 목적 기반 접근 제어가 권한 신청과 승인 사유를 어떻게 연결하는지 살펴봅니다.
-- [Foundry가 설비 데이터를 운영 판단으로 잇는 과정](https://palantir-news-jcurves.truelyric17.chatgpt.site/article.html?id=4c644e36b6fc) ([영문 원문](https://blog.palantir.com/how-palantir-foundry-powers-bps-digital-transformation-in-reliability-4c644e36b6fc)): bp 사례를 통해 분산된 엔지니어링·유지보수 데이터를 한데 보는 이유를 읽습니다.
-- [AI 모델이 실험실을 떠나 현장에 가려면](https://palantir-news-jcurves.truelyric17.chatgpt.site/article.html?id=b4024897a766) ([영문 원문](https://blog.palantir.com/making-ai-and-ml-operational-the-modeling-objective-b4024897a766)): 모델링 목표가 AI 모델과 실제 운영 문제를 연결하는 역할을 알아봅니다.
+- [데이터는 연결됐는데, 왜 업무 앱마다 뜻이 달라질까?](https://palantir-news-jcurves.ysinter.chatgpt.site/article.html?id=399bd1a5971b) ([영문 원문](https://blog.palantir.com/ontology-finding-meaning-in-data-palantir-rfx-blog-series-1-399bd1a5971b)): 온톨로지 개념을 뉴스레터 형식으로 읽습니다.
+- [데이터 접근 권한에 '왜'를 남기는 방법](https://palantir-news-jcurves.ysinter.chatgpt.site/article.html?id=f419faa400b3) ([영문 원문](https://blog.palantir.com/purpose-based-access-controls-at-palantir-f419faa400b3)): 목적 기반 접근 제어가 권한 신청과 승인 사유를 어떻게 연결하는지 살펴봅니다.
+- [Foundry가 설비 데이터를 운영 판단으로 잇는 과정](https://palantir-news-jcurves.ysinter.chatgpt.site/article.html?id=4c644e36b6fc) ([영문 원문](https://blog.palantir.com/how-palantir-foundry-powers-bps-digital-transformation-in-reliability-4c644e36b6fc)): bp 사례를 통해 분산된 엔지니어링·유지보수 데이터를 한데 보는 이유를 읽습니다.
 
-각 한국어 글에는 핵심 요약과 쉬운 설명을 담습니다. 새로 분석한 글에는 핵심 내용과 기술 해설을 덧붙이고, 원문 속 도표와 이미지는 출처를 표시해 함께 보여줍니다. 세부 사실은 원문에서 확인할 수 있습니다.
+상세 글은 도입, 구체적인 소제목, 원문 이미지, 검증 범위를 밝힌 마무리로 구성한 한국어 뉴스레터 형식으로 전환하고 있습니다. 아직 전환되지 않은 글은 기존 요약을 표시합니다. 세부 사실은 원문에서 확인할 수 있습니다.
 
 ## 주목하는 분야
 
@@ -25,7 +25,7 @@ Palantir News는 팔란티어의 공식 발표와 엔지니어링 글에서 기�
 
 ## 더 찾아보기
 
-- [사이트에서 전체 기사 탐색](https://palantir-news-jcurves.truelyric17.chatgpt.site/#explore): 연도와 주제로 글 찾기
+- [사이트에서 전체 기사 탐색](https://palantir-news-jcurves.ysinter.chatgpt.site/#explore): 연도와 주제로 글 찾기
 - [GitHub 아카이브](archive/): 날짜별 요약과 쉬운 설명
 - [전체 원문 목록](CATALOG.md): 발행일과 원문 링크. 한국어 분석 대기 중인 글도 포함됩니다.
 

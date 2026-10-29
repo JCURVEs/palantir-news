@@ -90,6 +90,24 @@ def test_archive_includes_detailed_analysis_and_inline_images(tmp_path):
     assert "![원문 이미지 1](https://miro.medium.com/diagram.png)" in content
 
 
+def test_archive_places_newsletter_image_in_matching_section(tmp_path):
+    article = sample_article()
+    article["inline_images"] = [{"url": "https://miro.medium.com/diagram.png", "caption": "", "section": "Method"}]
+    article["analysis"]["newsletter"] = {
+        "dek": "구체적인 부제입니다.",
+        "lead": ["도입 첫 문단입니다.", "도입 둘째 문단입니다."],
+        "sections": [{"heading": "계좌와 거래를 연결하는 방법", "source_heading": "Method", "paragraphs": ["구현 설명입니다."]}],
+        "closing": "확인된 의미와 한계입니다.",
+    }
+    rebuild_archives([article], tmp_path)
+    content = archive_path(tmp_path, article["published_at"]).read_text(encoding="utf-8")
+    heading = content.index("### 계좌와 거래를 연결하는 방법")
+    image = content.index("![원문 이미지 1](https://miro.medium.com/diagram.png)")
+    closing = content.index("### 정리하면")
+    assert heading < image < closing
+    assert content.count("![원문 이미지 1]") == 1
+
+
 def test_reviewed_articles_match_their_archives():
     root = Path(__file__).resolve().parents[1]
     records = load_index(root / "data" / "articles.jsonl")

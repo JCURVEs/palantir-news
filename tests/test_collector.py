@@ -57,7 +57,7 @@ def test_parse_medium_json_uses_first_publication_timestamp():
     assert article["published_at"] == "2021-01-01T00:00:00Z"
     assert article["modified_at"] == "2025-01-01T00:00:00Z"
     assert article["description"] == "A subtitle"
-    assert article["body"] == "First Second"
+    assert article["body"] == "First\n\nSecond"
 
 
 def test_parse_medium_json_collects_distinct_body_images_with_section():
@@ -78,6 +78,7 @@ def test_parse_medium_json_collects_distinct_body_images_with_section():
         "caption": "",
         "section": "How it works",
     }]
+    assert article["source_headings"] == ["How it works"]
 
 
 def test_parse_html_collects_figure_and_caption():
@@ -93,6 +94,7 @@ def test_parse_html_collects_figure_and_caption():
         "caption": "System diagram",
         "section": "Method",
     }]
+    assert article["source_headings"] == ["Method"]
 
 
 def test_reader_fallback_uses_canonical_source_url():
