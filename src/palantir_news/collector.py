@@ -35,6 +35,33 @@ def normalize_url(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/"), "", ""))
 
 
+def official_product_link(url: str, label: str, section: str = "") -> dict[str, str] | None:
+    parts = urlsplit(url.strip())
+    if parts.scheme != "https" or parts.netloc not in {"www.palantir.com", "palantir.com"}:
+        return None
+    if not parts.path.strip("/") or "." in parts.path.rsplit("/", 1)[-1]:
+        return None
+    label = _clean_text(label)
+    if len(label) < 4 or label.lower() in {"here", "learn more", "read more", "palantir"}:
+        return None
+    return {"url": urlunsplit(("https", "www.palantir.com", parts.path.rstrip("/") + "/", "", "")), "label": label, "section": section}
+
+
+def official_links_from_html(soup: BeautifulSoup) -> list[dict[str, str]]:
+    section = ""
+    links = []
+    seen = set()
+    for node in soup.find_all(["h2", "h3", "a"]):
+        if node.name in {"h2", "h3"}:
+            section = _clean_text(node.get_text(" ", strip=True))
+            continue
+        link = official_product_link(str(node.get("href") or ""), node.get_text(" ", strip=True), section)
+        if link and link["url"] not in seen:
+            links.append(link)
+            seen.add(link["url"])
+    return links
+
+
 def article_id_from_url(url: str) -> str | None:
     """Return a Medium article identifier when the URL is an article."""
     match = ARTICLE_ID_RE.search(normalize_url(url))
@@ -169,6 +196,7 @@ def parse_article_html(url: str, html: str) -> dict[str, Any]:
         "author": _clean_text(str(author.get("name", "Palantir"))) if isinstance(author, dict) else "Palantir",
         "image_url": cover_url,
         "inline_images": _html_inline_images(article, cover_url) if article else [],
+        "related_links": official_links_from_html(article) if article else [],
         "source_headings": [
             _clean_text(node.get_text(" ", strip=True))
             for node in article.find_all(["h2", "h3"])
@@ -204,11 +232,19 @@ def parse_medium_json(url: str, raw: str) -> dict[str, Any]:
     image_id = str(preview.get("imageId", ""))
     image_url = _medium_image_url(image_id)
     inline_images: list[dict[str, str]] = []
+    related_links: list[dict[str, str]] = []
+    seen_links: set[str] = set()
     seen_ids = {image_id}
     section = ""
     for paragraph in paragraphs:
         if paragraph.get("type") == 3:
             section = _clean_text(str(paragraph.get("text") or ""))
+        for markup in paragraph.get("markups") or []:
+            label = str(paragraph.get("text") or "")[markup.get("start", 0):markup.get("end", 0)]
+            link = official_product_link(str(markup.get("href") or ""), label, section)
+            if link and link["url"] not in seen_links:
+                related_links.append(link)
+                seen_links.add(link["url"])
         if paragraph.get("type") != 4:
             continue
         metadata = paragraph.get("metadata") or {}
@@ -229,6 +265,7 @@ def parse_medium_json(url: str, raw: str) -> dict[str, Any]:
         "author": "Palantir",
         "image_url": image_url,
         "inline_images": inline_images,
+        "related_links": related_links,
         "source_headings": source_headings,
         "body": body,
         "analysis": None,
@@ -309,6 +346,7 @@ def fetch_feed_bodies(
                         _clean_text(heading.get_text(" ", strip=True))
                         for heading in soup.find_all(["h2", "h3"])
                     ],
+                    "related_links": official_links_from_html(soup),
                 }
     return articles
 

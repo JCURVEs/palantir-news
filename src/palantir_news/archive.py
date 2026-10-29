@@ -32,6 +32,23 @@ def mark_highlights(paragraph: str, highlights: list[str]) -> str:
     return "".join(parts)
 
 
+def _media_label(value: str) -> str:
+    return re.sub(r"[\[\]\r\n]", " ", value).strip()
+
+
+def _append_product_media(lines: list[str], media: list[dict[str, str]]) -> None:
+    if not media:
+        return
+    source = media[0]
+    lines.extend([f"**Palantir 제품 자료:** [{_media_label(source['source_title'])}]({source['source_url']})", ""])
+    for item in media:
+        label = _media_label(item.get("caption") or source["source_title"])
+        if item.get("kind") == "image":
+            lines.extend([f"![{label}]({item['url']})", "", f"*{label}*", ""])
+        elif item.get("kind") == "video":
+            lines.extend([f"[제품 영상: {label}]({item['url']})", ""])
+
+
 def render_article(article: dict[str, Any], collected_on: str) -> str:
     analysis = article["analysis"]
     newsletter = analysis.get("newsletter")
@@ -47,6 +64,7 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
     ]
     used_images: set[int] = set()
     images = article.get("inline_images") or []
+    product_media = article.get("related_media") or []
     if newsletter:
         highlights = newsletter.get("highlights") or []
         lines.extend([f"*{newsletter['dek']}*", ""])
@@ -65,11 +83,16 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
                 if image.get("caption"):
                     lines.extend([image["caption"], ""])
                 used_images.add(index)
+            _append_product_media(lines, [item for item in product_media if item.get("section") == section["heading"]])
         for index, image in enumerate(images):
             if index not in used_images:
                 lines.extend([f"![Palantir 이미지 {index + 1}]({image['url']})", ""])
                 if image.get("caption"):
                     lines.extend([image["caption"], ""])
+        unmatched_media = [item for item in product_media if item.get("section") not in {section["heading"] for section in newsletter["sections"]}]
+        if unmatched_media:
+            lines.extend(["### 연관 제품 자료", ""])
+            _append_product_media(lines, unmatched_media)
         lines.extend(["### 정리하면", "", mark_highlights(newsletter["closing"], highlights), ""])
     else:
         lines.extend(["**요약:**  ", str(analysis["summary"]), ""])

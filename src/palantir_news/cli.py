@@ -25,6 +25,7 @@ from .collector import (
     has_readable_body,
     publication_year,
 )
+from .linked_media import choose_product_link, fetch_product_media
 from .summarizer import ANALYSIS_VERSION, summarize
 
 
@@ -78,7 +79,7 @@ def load_source_cache(root: Path, article: dict[str, Any]) -> dict[str, Any] | N
 def prefetch_source_bodies(records: dict[str, dict[str, Any]], root: Path, workers: int) -> tuple[int, int]:
     """Cache source text locally for grounded backfill without publishing it."""
     pending = [item for item in records.values() if not (item.get("analysis") or {}).get("newsletter")]
-    pending = [item for item in pending if load_source_cache(root, item) is None]
+    pending = [item for item in pending if (cached := load_source_cache(root, item)) is None or "related_links" not in cached]
 
     def fetch(item: dict[str, Any]) -> dict[str, Any]:
         fetched = fetch_article(item["url"], build_session())
@@ -97,6 +98,7 @@ def prefetch_source_bodies(records: dict[str, dict[str, Any]], root: Path, worke
                     "url": item["url"],
                     "body": fetched["body"],
                     "source_headings": fetched.get("source_headings", []),
+                    "related_links": fetched.get("related_links", []),
                 }
                 path = source_cache_path(root, item["id"])
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -185,6 +187,8 @@ def enrich_media(records: dict[str, dict[str, Any]], index_path: Path, limit: in
                 fetched = future.result()
                 item["inline_images"] = fetched.get("inline_images", [])
                 item["source_headings"] = fetched.get("source_headings", [])
+                if fetched.get("related_links") and not item.get("related_links"):
+                    item["related_links"] = fetched["related_links"]
                 if fetched.get("image_url") and not item.get("image_url"):
                     item["image_url"] = fetched["image_url"]
                 item["media_checked_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -195,6 +199,38 @@ def enrich_media(records: dict[str, dict[str, Any]], index_path: Path, limit: in
             if number % 25 == 0 or number == len(candidates):
                 save_index(index_path, records)
                 print(f"Checked article images {number}/{len(candidates)}")
+    return enriched, failures
+
+
+def enrich_linked_media(
+    records: dict[str, dict[str, Any]], index_path: Path,
+    feed_bodies: dict[str, dict[str, Any]], cache_root: Path,
+    limit: int, article_id: str | None = None,
+) -> tuple[int, int]:
+    candidates = []
+    for item in records.values():
+        if article_id and item["id"] != article_id:
+            continue
+        if not (item.get("analysis") or {}).get("newsletter") or item.get("related_media_checked_at"):
+            continue
+        if len(item.get("inline_images") or []) >= 2 and not article_id:
+            continue
+        source = feed_bodies.get(item["id"]) or load_source_cache(cache_root, item) or item
+        match = choose_product_link(item, source.get("related_links") or item.get("related_links") or [])
+        if match:
+            candidates.append((item, match))
+    candidates.sort(key=lambda pair: pair[0]["published_at"], reverse=True)
+    enriched = failures = 0
+    for item, (link, heading) in candidates[:limit]:
+        try:
+            media = fetch_product_media(link["url"])
+            item["related_media"] = [{**asset, "section": heading} for asset in media]
+            item["related_media_checked_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            enriched += bool(media)
+        except Exception as exc:
+            failures += 1
+            print(f"::warning::Linked media failed for {item['id']}: {type(exc).__name__}: {exc}")
+        save_index(index_path, records)
     return enriched, failures
 
 
@@ -265,6 +301,8 @@ def analyze_pending(
             if source:
                 article["body"] = source["body"]
                 article["source_headings"] = source["source_headings"]
+                if source.get("related_links"):
+                    article["related_links"] = source["related_links"]
             if not article.get("body"):
                 try:
                     fetched = fetch_article(article["url"], build_session())
@@ -310,6 +348,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--collect-only", action="store_true")
     parser.add_argument("--media-limit", type=int, default=0, help="Backfill images for this many existing posts; 0 disables backfill")
     parser.add_argument("--media-only", action="store_true", help="Skip sitemap collection and AI analysis while backfilling images")
+    parser.add_argument("--linked-media-limit", type=int, default=0, help="Enrich this many sparse articles from linked official product pages")
+    parser.add_argument("--linked-media-only", action="store_true", help="Skip collection and AI analysis while enriching linked product media")
     parser.add_argument("--prefetch-sources", action="store_true", help="Cache missing source bodies locally; never commit source text")
     parser.add_argument("--refresh", action="store_true", help="Refetch already indexed article pages")
     return parser.parse_args()
@@ -331,7 +371,7 @@ def main() -> int:
         ignored_urls = {line.strip() for line in ignored_path.read_text(encoding="utf-8").splitlines() if line.strip()}
 
     workers = max(1, min(args.workers, 8))
-    urls = [] if args.media_only else [url for url in fetch_sitemap() if url not in ignored_urls]
+    urls = [] if args.media_only or args.linked_media_only else [url for url in fetch_sitemap() if url not in ignored_urls]
     collected, failures = collect_missing(urls, records, workers)
     for article in collected:
         year = publication_year(article)
@@ -347,11 +387,11 @@ def main() -> int:
     }
     apply_editorial_overrides(records, root / "data" / "editorials")
     save_index(index_path, records)
-    if args.media_limit > 0:
+    if args.media_limit > 0 and not args.linked_media_only:
         enriched, media_failures = enrich_media(records, index_path, args.media_limit, workers)
         print(f"Article images checked: {enriched}; failures: {media_failures}")
     ignored_path.write_text("\n".join(sorted(ignored_urls)) + ("\n" if ignored_urls else ""), encoding="utf-8")
-    if not args.media_only:
+    if not args.media_only and not args.linked_media_only:
         failure_path.write_text("\n".join(failures) + ("\n" if failures else ""), encoding="utf-8")
     write_catalog(root / "CATALOG.md", records)
 
@@ -374,10 +414,14 @@ def main() -> int:
     else:
         pending = select_pending(records, args.analysis_limit, set(feed_bodies) | cache_ids)
 
+    if args.linked_media_limit > 0:
+        enriched, media_failures = enrich_linked_media(records, index_path, feed_bodies, root, args.linked_media_limit, args.article_id)
+        print(f"Linked product pages enriched: {enriched}; failures: {media_failures}")
+
     key = os.getenv("GROQ_API_KEY")
-    if not args.collect_only and not args.media_only and key:
+    if not args.collect_only and not args.media_only and not args.linked_media_only and key:
         analyze_pending(pending, records, index_path, key, args.analysis_pause_seconds, feed_bodies, root)
-    elif not args.collect_only and not args.media_only and pending:
+    elif not args.collect_only and not args.media_only and not args.linked_media_only and pending:
         print(f"GROQ_API_KEY is not configured; {len(pending)} articles remain pending")
 
     apply_editorial_overrides(records, root / "data" / "editorials")

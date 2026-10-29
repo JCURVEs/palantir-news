@@ -127,6 +127,24 @@ def test_newsletter_archive_matches_site_content_without_top_highlights(tmp_path
     assert "TOP HIGHLIGHTS" not in content
 
 
+def test_linked_product_media_appears_beside_matching_section():
+    article = sample_article()
+    article["analysis"]["newsletter"] = {
+        "dek": "제품 자료를 함께 보여주는 뉴스레터입니다.",
+        "lead": ["도입 문단입니다.", "두 번째 문단입니다."],
+        "sections": [{"heading": "Security Forge의 검토 과정", "paragraphs": ["구체적인 제품 설명입니다."]}],
+        "closing": "확인된 범위만 정리합니다.",
+    }
+    article["related_media"] = [{
+        "kind": "image", "url": "https://images.ctfassets.net/xrfr7uokpv1b/a/b/diagram.png",
+        "caption": "Security Forge Graphic", "source_url": "https://www.palantir.com/security-forge/",
+        "source_title": "Security Forge", "section": "Security Forge의 검토 과정",
+    }]
+    content = render_article(article, "2026-10-29")
+    assert content.index("### Security Forge의 검토 과정") < content.index("![Security Forge Graphic]") < content.index("### 정리하면")
+    assert "[Security Forge](https://www.palantir.com/security-forge/)" in content
+
+
 def test_curated_editorial_is_stored_in_public_index(tmp_path):
     article = sample_article()
     article["analysis_version"] = 2

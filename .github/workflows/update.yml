@@ -48,7 +48,7 @@ jobs:
             echo "analysis_limit must be between 1 and 5" >&2
             exit 1
           fi
-          args=(--start-year 2020 --end-year 2026 --analysis-limit "$ANALYSIS_LIMIT" --analysis-pause-seconds 60 --media-limit 20)
+          args=(--start-year 2020 --end-year 2026 --analysis-limit "$ANALYSIS_LIMIT" --analysis-pause-seconds 60 --media-limit 20 --linked-media-limit 3)
           if [ -n "$ARTICLE_ID" ]; then
             if ! [[ "$ARTICLE_ID" =~ ^[0-9a-f]{12}$ ]]; then
               echo "article_id must be a 12-character Medium ID" >&2

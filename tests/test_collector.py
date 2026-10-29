@@ -42,6 +42,17 @@ def test_official_feed_supplies_recent_article_body_and_headings():
     assert "Detailed Palantir explanation." in result["abcdef123456"]["body"]
 
 
+def test_article_collects_only_official_product_links():
+    html = '''<script type="application/ld+json">{
+      "headline":"Security", "datePublished":"2026-01-01T00:00:00Z"
+    }</script><article><h2>Product</h2><p><a href="https://www.palantir.com/security-forge/?utm=x">Security Forge</a>
+    <a href="https://evil.example/product">Other product</a></p></article>'''
+    article = parse_article_html("https://blog.palantir.com/security-abcdef123456", html)
+    assert article["related_links"] == [{
+        "url": "https://www.palantir.com/security-forge/", "label": "Security Forge", "section": "Product",
+    }]
+
+
 def test_tag_feed_adds_older_articles_without_replacing_publication_entry():
     class FakeResponse:
         def __init__(self, article_id):
