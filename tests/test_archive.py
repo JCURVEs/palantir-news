@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from palantir_news.archive import archive_path, rebuild_archives, render_article
-from palantir_news.cli import enrich_media, load_index, save_index, write_catalog
+from palantir_news.cli import apply_editorial_overrides, enrich_media, load_index, save_index, write_catalog
 
 
 def sample_article():
@@ -108,6 +108,44 @@ def test_archive_places_newsletter_image_in_matching_section(tmp_path):
     assert content.count("![Palantir 이미지 1]") == 1
 
 
+def test_newsletter_archive_matches_site_content_without_top_highlights(tmp_path):
+    article = sample_article()
+    article["analysis"]["newsletter"] = {
+        "title": "은행 데이터의 의미를 함께 쓰는 법",
+        "dek": "업무 객체를 여러 앱에 연결하는 방법입니다.",
+        "lead": ["은행에서 계좌를 정의합니다. 핵심 문장입니다.", "앱마다 같은 정의를 재사용합니다."],
+        "highlights": ["핵심 문장입니다."],
+        "sections": [{"heading": "계좌를 객체로 정의한다", "paragraphs": ["계좌와 거래를 연결합니다."]}],
+        "closing": "실무 적용 범위는 확인이 필요합니다.",
+    }
+    content = render_article(article, "2026-10-29")
+    assert "## 은행 데이터의 의미를 함께 쓰는 법" in content
+    assert "<mark>핵심 문장입니다.</mark>" in content
+    assert "### 계좌를 객체로 정의한다" in content
+    assert "**요약:**" not in content
+    assert "**쉬운설명:**" not in content
+    assert "TOP HIGHLIGHTS" not in content
+
+
+def test_curated_editorial_is_stored_in_public_index(tmp_path):
+    article = sample_article()
+    article["analysis_version"] = 2
+    directory = tmp_path / "editorials"
+    directory.mkdir()
+    (directory / f"{article['id']}.json").write_text(
+        '{"title":"검수한 제목","sections":[{"heading":"구체적 내용"}]}', encoding="utf-8"
+    )
+    records = {article["id"]: article}
+    assert apply_editorial_overrides(records, directory) == 1
+    assert article["newsletter_source"] == "curated"
+    assert article["analysis"]["newsletter"]["title"] == "검수한 제목"
+    from palantir_news.cli import select_pending
+    assert select_pending(records, 10) == []
+    path = tmp_path / "articles.jsonl"
+    save_index(path, records)
+    assert load_index(path)[article["id"]]["analysis"]["newsletter"]["title"] == "검수한 제목"
+
+
 def test_reviewed_articles_match_their_archives():
     root = Path(__file__).resolve().parents[1]
     records = load_index(root / "data" / "articles.jsonl")
@@ -122,7 +160,11 @@ def test_reviewed_articles_match_their_archives():
         archived = archive_path(root / "archive", article["published_at"]).read_text(encoding="utf-8")
         assert article["analysis_version"] >= 2
         assert len(analysis["summary"]) >= 300
-        assert analysis["summary"] in archived
-        assert analysis["easy_explainer"] in archived
+        if analysis.get("newsletter"):
+            assert analysis["newsletter"]["dek"] in archived
+            assert analysis["newsletter"]["sections"][0]["heading"] in archived
+        else:
+            assert analysis["summary"] in archived
+            assert analysis["easy_explainer"] in archived
 
     assert "고장 나기 전에 문제를 예측" not in records["4c644e36b6fc"]["analysis"]["easy_explainer"]

@@ -60,6 +60,24 @@ def save_index(path: Path, records: dict[str, dict[str, Any]]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def apply_editorial_overrides(records: dict[str, dict[str, Any]], directory: Path) -> int:
+    """Keep manually reviewed newsletters in the same index as generated ones."""
+    applied = 0
+    for path in sorted(directory.glob("*.json")):
+        article = records.get(path.stem)
+        if article is None:
+            raise ValueError(f"Editorial has no indexed article: {path.name}")
+        if article.get("analysis_status") != "complete" or not article.get("analysis"):
+            raise ValueError(f"Editorial article has no completed analysis: {path.name}")
+        newsletter = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(newsletter, dict) or not newsletter.get("title") or not newsletter.get("sections"):
+            raise ValueError(f"Editorial is incomplete: {path.name}")
+        article["analysis"]["newsletter"] = newsletter
+        article["newsletter_source"] = "curated"
+        applied += 1
+    return applied
+
+
 def write_catalog(path: Path, records: dict[str, dict[str, Any]]) -> None:
     """Write a browsable, year-grouped index without requiring AI analysis."""
     grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -135,8 +153,9 @@ def enrich_media(records: dict[str, dict[str, Any]], index_path: Path, limit: in
 def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[str, Any]]:
     pending = [
         item for item in records.values()
-        if item.get("analysis_status") != "complete"
-        or item.get("analysis_version", 0) < ANALYSIS_VERSION
+        if item.get("newsletter_source") != "curated"
+        and (item.get("analysis_status") != "complete"
+             or item.get("analysis_version", 0) < ANALYSIS_VERSION)
     ]
     recent_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
@@ -260,6 +279,7 @@ def main() -> int:
         for key, article in records.items()
         if args.start_year <= publication_year(article) <= args.end_year
     }
+    apply_editorial_overrides(records, root / "data" / "editorials")
     save_index(index_path, records)
     if args.media_limit > 0:
         enriched, media_failures = enrich_media(records, index_path, args.media_limit, workers)
@@ -282,6 +302,8 @@ def main() -> int:
     elif not args.collect_only and not args.media_only and pending:
         print(f"GROQ_API_KEY is not configured; {len(pending)} articles remain pending")
 
+    apply_editorial_overrides(records, root / "data" / "editorials")
+    save_index(index_path, records)
     archived = rebuild_archives(records.values(), root / "archive")
     complete = sum(item.get("analysis_status") == "complete" for item in records.values())
     print(

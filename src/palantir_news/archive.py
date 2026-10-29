@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from html import escape
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -14,10 +15,28 @@ def archive_path(root: Path, published_at: str) -> Path:
     return root / str(published.year) / f"{published.month:02d}월" / f"{published:%Y-%m-%d}.md"
 
 
+def mark_highlights(paragraph: str, highlights: list[str]) -> str:
+    matches = []
+    for sentence in highlights:
+        for match in re.finditer(re.escape(sentence), paragraph):
+            matches.append((match.start(), match.end()))
+    matches.sort(key=lambda item: (item[0], -item[1]))
+    parts = []
+    cursor = 0
+    for start, end in matches:
+        if start < cursor:
+            continue
+        parts.extend((escape(paragraph[cursor:start], quote=False), f"<mark>{escape(paragraph[start:end], quote=False)}</mark>"))
+        cursor = end
+    parts.append(escape(paragraph[cursor:], quote=False))
+    return "".join(parts)
+
+
 def render_article(article: dict[str, Any], collected_on: str) -> str:
     analysis = article["analysis"]
+    newsletter = analysis.get("newsletter")
     lines = [
-        f"## [Palantir] {analysis['title_ko']}",
+        f"## {newsletter.get('title', analysis['title_ko']) if newsletter else '[Palantir] ' + analysis['title_ko']}",
         "",
         f"**분야:** {analysis['category']} | **중요도:** {analysis['importance']}점",
         "",
@@ -25,23 +44,20 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         "",
         f"**수집일:** {collected_on}",
         "",
-        "**요약:**  ",
-        str(analysis["summary"]),
-        "",
     ]
-    newsletter = analysis.get("newsletter")
     used_images: set[int] = set()
     images = article.get("inline_images") or []
     if newsletter:
-        lines.extend(["**뉴스레터 본문:**", "", f"*{newsletter['dek']}*", ""])
+        highlights = newsletter.get("highlights") or []
+        lines.extend([f"*{newsletter['dek']}*", ""])
         for paragraph in newsletter["lead"]:
-            lines.extend([paragraph, ""])
+            lines.extend([mark_highlights(paragraph, highlights), ""])
         if article.get("image_url"):
             lines.extend([f"![Palantir 대표 이미지]({article['image_url']})", ""])
         for section in newsletter["sections"]:
             lines.extend([f"### {section['heading']}", ""])
             for paragraph in section["paragraphs"]:
-                lines.extend([paragraph, ""])
+                lines.extend([mark_highlights(paragraph, highlights), ""])
             for index, image in enumerate(images):
                 if index in used_images or not section.get("source_heading") or image.get("section") != section["source_heading"]:
                     continue
@@ -49,28 +65,32 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
                 if image.get("caption"):
                     lines.extend([image["caption"], ""])
                 used_images.add(index)
-        lines.extend(["### 정리하면", "", newsletter["closing"], ""])
-    if analysis.get("key_points"):
-        lines.extend(["**핵심 내용:**", ""])
-        lines.extend(f"- {point}" for point in analysis["key_points"])
-        lines.append("")
-    if analysis.get("technical_detail"):
-        lines.extend(["**기술 해설:**  ", str(analysis["technical_detail"]), ""])
+        for index, image in enumerate(images):
+            if index not in used_images:
+                lines.extend([f"![Palantir 이미지 {index + 1}]({image['url']})", ""])
+                if image.get("caption"):
+                    lines.extend([image["caption"], ""])
+        lines.extend(["### 정리하면", "", mark_highlights(newsletter["closing"], highlights), ""])
+    else:
+        lines.extend(["**요약:**  ", str(analysis["summary"]), ""])
+        if analysis.get("key_points"):
+            lines.extend(["**핵심 내용:**", ""])
+            lines.extend(f"- {point}" for point in analysis["key_points"])
+            lines.append("")
+        if analysis.get("technical_detail"):
+            lines.extend(["**기술 해설:**  ", str(analysis["technical_detail"]), ""])
+        lines.extend(["**쉬운설명:**  ", str(analysis["easy_explainer"]), ""])
     lines.extend([
-        "**쉬운설명:**  ",
-        str(analysis["easy_explainer"]),
-        "",
         f"**출처:** {article['url']}",
         "",
-        f"**Palantir 제목:** {article['title']}",
-        "",
     ])
-    if article.get("image_url") and not newsletter:
-        lines.extend([f"![Palantir 대표 이미지]({article['image_url']})", ""])
-    remaining_images = [(index, image) for index, image in enumerate(images) if index not in used_images]
-    if remaining_images:
-        lines.extend(["**Palantir가 제시한 이미지:**", ""])
-        for index, image in remaining_images:
+    if not newsletter:
+        lines.extend([f"**Palantir 제목:** {article['title']}", ""])
+        if article.get("image_url"):
+            lines.extend([f"![Palantir 대표 이미지]({article['image_url']})", ""])
+        if images:
+            lines.extend(["**Palantir가 제시한 이미지:**", ""])
+        for index, image in enumerate(images):
             lines.extend([f"![Palantir 이미지 {index + 1}]({image['url']})", ""])
             if image.get("caption"):
                 lines.extend([image["caption"], ""])
