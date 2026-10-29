@@ -167,6 +167,8 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[
             if status != "failed" and published >= recent_cutoff:
                 return (0, newest_first)
             return (2 if status != "failed" else 4, newest_first)
+        if item.get("analysis_error"):
+            return (5, newest_first)
         summary = str((item.get("analysis") or {}).get("summary", ""))
         needs_review = len(summary) < 180 or any(phrase in summary for phrase in REVIEW_PHRASES)
         return (1 if needs_review else 3, newest_first)
@@ -229,6 +231,7 @@ def analyze_pending(
             if not was_complete:
                 article["analysis_status"] = "failed"
             article["analysis_error"] = f"{type(exc).__name__}: {exc}"
+            print(f"::warning::Analysis failed for {article['id']}: {article['analysis_error']}")
         finally:
             article.pop("body", None)
             save_index(index_path, records)

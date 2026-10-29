@@ -89,6 +89,16 @@ def test_meta_worded_summary_is_reviewed_before_other_legacy_articles():
     assert [item["id"] for item in cli.select_pending({"meta": meta, "ordinary": ordinary}, 2)] == ["meta", "ordinary"]
 
 
+def test_source_blocked_complete_article_does_not_starve_next_newsletter():
+    blocked = article("blocked", "2026-01-01T00:00:00Z", "complete")
+    blocked["analysis_version"] = cli.ANALYSIS_VERSION - 1
+    blocked["analysis_error"] = "ValueError: Reader returned insufficient content"
+    ready = article("ready", "2025-01-01T00:00:00Z", "complete")
+    ready["analysis_version"] = cli.ANALYSIS_VERSION - 1
+    ready["analysis"] = {"summary": "구체적인 사실과 맥락을 담은 요약입니다. " * 12}
+    assert [item["id"] for item in cli.select_pending({"blocked": blocked, "ready": ready}, 1)] == ["ready"]
+
+
 def test_rate_limit_retry_waits_then_succeeds(monkeypatch):
     calls = []
     waits = []
