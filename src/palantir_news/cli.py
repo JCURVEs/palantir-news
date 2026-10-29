@@ -145,10 +145,10 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[
         if status != "complete":
             if status != "failed" and published >= recent_cutoff:
                 return (0, newest_first)
-            return (2 if status != "failed" else 4, newest_first)
+            return (2 if status != "failed" else 3, newest_first)
         summary = str((item.get("analysis") or {}).get("summary", ""))
         needs_review = len(summary) < 180 or any(phrase in summary for phrase in LOW_INFORMATION_PHRASES)
-        return (1 if needs_review else 3, newest_first)
+        return (1 if needs_review else 4, newest_first)
 
     pending.sort(key=priority)
     return pending[:limit] if limit > 0 else pending

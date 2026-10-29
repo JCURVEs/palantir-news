@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from palantir_news.archive import archive_path, rebuild_archives
+from palantir_news.archive import archive_path, rebuild_archives, render_article
 from palantir_news.cli import enrich_media, load_index, save_index, write_catalog
 
 
@@ -33,6 +33,15 @@ def test_rebuild_archives_writes_thread_auto_style(tmp_path):
     assert "**요약:**" in content
     assert "**쉬운설명:**" in content
     assert "https://blog.palantir.com/example-abcdef123456" in content
+
+
+def test_rebuild_archives_keeps_existing_collection_date(tmp_path):
+    article = sample_article()
+    path = archive_path(tmp_path, article["published_at"])
+    path.parent.mkdir(parents=True)
+    path.write_text(render_article(article, "2026-10-16"), encoding="utf-8")
+    rebuild_archives([article], tmp_path)
+    assert "**수집일:** 2026-10-16" in path.read_text(encoding="utf-8")
 
 
 def test_write_catalog_groups_articles_by_year(tmp_path):
