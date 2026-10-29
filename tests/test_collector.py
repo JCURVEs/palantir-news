@@ -1,6 +1,7 @@
 from palantir_news.collector import (
     article_id_from_url,
     fetch_article,
+    fetch_feed_bodies,
     fetch_reader_text,
     has_readable_body,
     normalize_url,
@@ -18,6 +19,27 @@ def test_parse_sitemap_keeps_only_articles_and_deduplicates():
       <url><loc>https://blog.palantir.com/example-post-abcdef123456</loc></url>
     </urlset>"""
     assert parse_sitemap(xml) == ["https://blog.palantir.com/example-post-abcdef123456"]
+
+
+def test_official_feed_supplies_recent_article_body_and_headings():
+    class FakeResponse:
+        content = b'''<rss xmlns:content="http://purl.org/rss/1.0/modules/content/">
+        <channel><item><link>https://blog.palantir.com/example-abcdef123456?source=rss</link>
+        <content:encoded><![CDATA[<h2>What changed</h2><p>Detailed Palantir explanation. ''' + b"A" * 220 + b'''</p>]]></content:encoded>
+        </item></channel></rss>'''
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        def get(self, url, timeout):
+            assert url == "https://blog.palantir.com/feed"
+            assert timeout == 30
+            return FakeResponse()
+
+    result = fetch_feed_bodies(FakeSession())
+    assert result["abcdef123456"]["source_headings"] == ["What changed"]
+    assert "Detailed Palantir explanation." in result["abcdef123456"]["body"]
 
 
 def test_parse_article_uses_json_ld_publication_date():

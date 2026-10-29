@@ -16,6 +16,7 @@ from urllib3.util.retry import Retry
 
 
 SITEMAP_URL = "https://blog.palantir.com/sitemap/sitemap.xml"
+FEED_URL = "https://blog.palantir.com/feed"
 ARTICLE_ID_RE = re.compile(r"-([0-9a-f]{8,})$")
 USER_AGENT = "Palantir-News-Archive/1.0 (+https://github.com/JCURVEs/palantir-news)"
 BLOCKED_PAGE_MARKERS = (
@@ -275,6 +276,32 @@ def fetch_reader_text(url: str, session: requests.Session | None = None) -> str:
     if not has_readable_body(text):
         raise ValueError(f"Reader returned insufficient content: {url}")
     return text
+
+
+def fetch_feed_bodies(session: requests.Session | None = None) -> dict[str, dict[str, Any]]:
+    """Use recent full-text official RSS entries when article pages block CI."""
+    client = session or build_session()
+    response = client.get(FEED_URL, timeout=30)
+    response.raise_for_status()
+    root = ElementTree.fromstring(response.content)
+    content_tag = "{http://purl.org/rss/1.0/modules/content/}encoded"
+    articles = {}
+    for item in root.findall(".//item"):
+        article_id = article_id_from_url(item.findtext("link") or "")
+        html = item.findtext(content_tag) or ""
+        if not article_id or not html:
+            continue
+        soup = BeautifulSoup(html, "html.parser")
+        body = _clean_text(soup.get_text(" ", strip=True))
+        if has_readable_body(body):
+            articles[article_id] = {
+                "body": body,
+                "source_headings": [
+                    _clean_text(heading.get_text(" ", strip=True))
+                    for heading in soup.find_all(["h2", "h3"])
+                ],
+            }
+    return articles
 
 
 def publication_year(article: dict[str, Any]) -> int:

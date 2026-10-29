@@ -19,6 +19,7 @@ from .collector import (
     article_id_from_url,
     build_session,
     fetch_article,
+    fetch_feed_bodies,
     fetch_reader_text,
     fetch_sitemap,
     has_readable_body,
@@ -150,7 +151,7 @@ def enrich_media(records: dict[str, dict[str, Any]], index_path: Path, limit: in
     return enriched, failures
 
 
-def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+def select_pending(records: dict[str, dict[str, Any]], limit: int, feed_ids: set[str] | None = None) -> list[dict[str, Any]]:
     pending = [
         item for item in records.values()
         if item.get("newsletter_source") != "curated"
@@ -163,6 +164,8 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[
         status = item.get("analysis_status")
         published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00"))
         newest_first = -published.timestamp()
+        if item["id"] in (feed_ids or set()):
+            return (-1, newest_first)
         if status != "complete":
             if status != "failed" and published >= recent_cutoff:
                 return (0, newest_first)
@@ -200,6 +203,7 @@ def analyze_pending(
     index_path: Path,
     api_key: str,
     pause_seconds: float,
+    feed_bodies: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     for number, article in enumerate(pending, start=1):
         if number > 1 and pause_seconds > 0:
@@ -207,6 +211,10 @@ def analyze_pending(
         rate_limited = False
         was_complete = article.get("analysis_status") == "complete"
         try:
+            feed_article = (feed_bodies or {}).get(article["id"])
+            if feed_article:
+                article["body"] = feed_article["body"]
+                article["source_headings"] = feed_article["source_headings"]
             if not article.get("body"):
                 try:
                     fetched = fetch_article(article["url"], build_session())
@@ -292,16 +300,22 @@ def main() -> int:
         failure_path.write_text("\n".join(failures) + ("\n" if failures else ""), encoding="utf-8")
     write_catalog(root / "CATALOG.md", records)
 
+    feed_bodies = {}
+    if not args.collect_only and not args.media_only:
+        try:
+            feed_bodies = fetch_feed_bodies(build_session())
+        except Exception as exc:
+            print(f"::warning::Official RSS body fetch failed: {type(exc).__name__}: {exc}")
     if args.article_id:
         if args.article_id not in records:
             raise SystemExit(f"Article not found in index: {args.article_id}")
         pending = [records[args.article_id]]
     else:
-        pending = select_pending(records, args.analysis_limit)
+        pending = select_pending(records, args.analysis_limit, set(feed_bodies))
 
     key = os.getenv("GROQ_API_KEY")
     if not args.collect_only and not args.media_only and key:
-        analyze_pending(pending, records, index_path, key, args.analysis_pause_seconds)
+        analyze_pending(pending, records, index_path, key, args.analysis_pause_seconds, feed_bodies)
     elif not args.collect_only and not args.media_only and pending:
         print(f"GROQ_API_KEY is not configured; {len(pending)} articles remain pending")
 

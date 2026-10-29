@@ -99,6 +99,16 @@ def test_source_blocked_complete_article_does_not_starve_next_newsletter():
     assert [item["id"] for item in cli.select_pending({"blocked": blocked, "ready": ready}, 1)] == ["ready"]
 
 
+def test_recent_rss_body_takes_priority_over_blocked_archive_refresh():
+    blocked = article("blocked", "2026-01-01T00:00:00Z", "complete")
+    blocked["analysis_version"] = cli.ANALYSIS_VERSION - 1
+    blocked["analysis"] = {"summary": "짧은 요약"}
+    feed_article = article("feed", "2025-01-01T00:00:00Z", "failed")
+    assert [item["id"] for item in cli.select_pending(
+        {"blocked": blocked, "feed": feed_article}, 1, {"feed"}
+    )] == ["feed"]
+
+
 def test_rate_limit_retry_waits_then_succeeds(monkeypatch):
     calls = []
     waits = []
