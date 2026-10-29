@@ -79,6 +79,16 @@ def test_failed_source_does_not_starve_newsletter_refresh():
     assert [item["id"] for item in cli.select_pending(records, 2)] == ["reviewed", "failed"]
 
 
+def test_meta_worded_summary_is_reviewed_before_other_legacy_articles():
+    meta = article("meta", "2021-01-01T00:00:00Z", "complete")
+    meta["analysis_version"] = cli.ANALYSIS_VERSION - 1
+    meta["analysis"] = {"summary": "원문은 기술 내용을 설명합니다. " * 12}
+    ordinary = article("ordinary", "2024-01-01T00:00:00Z", "complete")
+    ordinary["analysis_version"] = cli.ANALYSIS_VERSION - 1
+    ordinary["analysis"] = {"summary": "Palantir는 기술 내용을 설명합니다. " * 12}
+    assert [item["id"] for item in cli.select_pending({"meta": meta, "ordinary": ordinary}, 2)] == ["meta", "ordinary"]
+
+
 def test_rate_limit_retry_waits_then_succeeds(monkeypatch):
     calls = []
     waits = []

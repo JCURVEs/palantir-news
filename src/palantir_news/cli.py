@@ -27,12 +27,13 @@ from .collector import (
 from .summarizer import ANALYSIS_VERSION, summarize
 
 
-LOW_INFORMATION_PHRASES = (
+REVIEW_PHRASES = (
     "CAPTCHA",
     "보안 인증 페이지",
     "보안 검증 페이지",
     "접근이 차단",
     "원문 본문은",
+    "원문",
 )
 
 
@@ -148,7 +149,7 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int) -> list[dict[
                 return (0, newest_first)
             return (2 if status != "failed" else 4, newest_first)
         summary = str((item.get("analysis") or {}).get("summary", ""))
-        needs_review = len(summary) < 180 or any(phrase in summary for phrase in LOW_INFORMATION_PHRASES)
+        needs_review = len(summary) < 180 or any(phrase in summary for phrase in REVIEW_PHRASES)
         return (1 if needs_review else 3, newest_first)
 
     pending.sort(key=priority)
