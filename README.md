@@ -6,6 +6,10 @@ Palantir News는 팔란티어의 공식 발표와 엔지니어링 글에서 기�
 
 **[Palantir News 사이트에서 읽기](https://palantir-news-jcurves.ysinter.chatgpt.site/)**
 
+## 백서 깊이 읽기
+
+- [AutoResearch와 파인튜닝 온톨로지](whitepapers/autoresearch.md): 데이터셋·기법·모델을 잇는 학습 체계, CNC 가상 사례, 평가 수치의 한계를 긴 글로 해설합니다. [사이트에서 읽기](https://palantir-news-jcurves.ysinter.chatgpt.site/whitepaper.html?paper=autoresearch)
+
 [![도시와 물류 현장을 잇는 데이터 흐름을 표현한 Palantir News 커버](assets/palantir-news-cover.png)](https://palantir-news-jcurves.ysinter.chatgpt.site/)
 
 ## 골라 읽는 기술 이야기
