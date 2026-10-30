@@ -9,6 +9,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def append_table(lines: list[str], table: dict) -> None:
+    lines.extend([f"*{table['caption']}*", ""])
+    headers = [str(value).replace("|", "\\|") for value in table["headers"]]
+    lines.extend(["| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"])
+    for row in table["rows"]:
+        values = [str(value).replace("|", "\\|") for value in row]
+        lines.append("| " + " | ".join(values) + " |")
+    lines.append("")
+
+
 def render(data: dict) -> str:
     source = data["source_url"]
     lines = [
@@ -23,19 +33,21 @@ def render(data: dict) -> str:
     ]
     for paragraph in data["lead"]:
         lines.extend([paragraph, ""])
+    companion = data.get("companion")
+    if companion:
+        lines.extend([f"## {companion['title']}", "", companion["description"], ""])
+        for diagram in companion["diagrams"]:
+            lines.extend([f"![{diagram['alt']}](assets/{diagram['file']})", "", f"*{diagram['caption']}*", ""])
+        for table in companion["tables"]:
+            append_table(lines, table)
+        lines.extend(["> " + companion["note"], ""])
     for index, section in enumerate(data["sections"], start=1):
         lines.extend([f"## {index:02d}. {section['heading']}", ""])
         for paragraph in section["paragraphs"]:
             lines.extend([paragraph, ""])
         table = section.get("table")
         if table:
-            lines.extend([f"*{table['caption']}*", ""])
-            headers = [str(value).replace("|", "\\|") for value in table["headers"]]
-            lines.extend(["| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"])
-            for row in table["rows"]:
-                values = [str(value).replace("|", "\\|") for value in row]
-                lines.append("| " + " | ".join(values) + " |")
-            lines.append("")
+            append_table(lines, table)
         if section.get("note"):
             lines.extend(["> " + section["note"], ""])
         pages = section.get("source_pages", [])

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 650" role="img" aria-labelledby="title desc">
+  <title id="title">AutoResearch 학습 자산 흐름</title>
+  <desc id="desc">운영 기록, 업무 온톨로지, 파인튜닝 온톨로지, AutoResearch, 운영 검증의 다섯 단계</desc>
+  <rect width="560" height="650" fill="#f4f5f2"/>
+  <text x="35" y="43" fill="#087d78" font-family="Noto Sans KR,sans-serif" font-size="14" font-weight="700">한국어 도해 01 / 학습 자산의 흐름</text>
+  <text x="35" y="77" fill="#152326" font-family="Noto Sans KR,sans-serif" font-size="24" font-weight="700">현장의 결과가 모델로 돌아오는 구조</text>
+  <g font-family="Noto Sans KR,sans-serif">
+    <rect x="35" y="103" width="490" height="84" fill="#fff" stroke="#b7c6c1" stroke-width="2"/>
+    <text x="57" y="137" fill="#152326" font-size="21" font-weight="700">01  운영 기록</text>
+    <text x="57" y="164" fill="#425554" font-size="16">ERP · MES · 고장 티켓 · 계측값 · 조치 결과</text>
+    <path d="M280 188v20m-7-8 7 8 7-8" fill="none" stroke="#087d78" stroke-width="3"/>
+    <rect x="35" y="211" width="490" height="84" fill="#e9efec" stroke="#a8bdb7" stroke-width="2"/>
+    <text x="57" y="245" fill="#152326" font-size="21" font-weight="700">02  업무 온톨로지</text>
+    <text x="57" y="272" fill="#425554" font-size="16">자산 · 고장 · 티켓 · 행동의 관계 연결</text>
+    <path d="M280 296v20m-7-8 7 8 7-8" fill="none" stroke="#087d78" stroke-width="3"/>
+    <rect x="35" y="319" width="490" height="84" fill="#fff" stroke="#b7c6c1" stroke-width="2"/>
+    <text x="57" y="353" fill="#152326" font-size="21" font-weight="700">03  파인튜닝 온톨로지</text>
+    <text x="57" y="380" fill="#425554" font-size="16">데이터셋 · 학습 기법 · 모델과 가중치</text>
+    <path d="M280 404v20m-7-8 7 8 7-8" fill="none" stroke="#087d78" stroke-width="3"/>
+    <rect x="35" y="427" width="490" height="84" fill="#e9efec" stroke="#a8bdb7" stroke-width="2"/>
+    <text x="57" y="461" fill="#152326" font-size="21" font-weight="700">04  AutoResearch</text>
+    <text x="57" y="488" fill="#425554" font-size="16">레시피 탐색 · 후보 평가 · 실험 이력</text>
+    <path d="M280 512v20m-7-8 7 8 7-8" fill="none" stroke="#087d78" stroke-width="3"/>
+    <rect x="35" y="535" width="490" height="84" fill="#102a31"/>
+    <text x="57" y="569" fill="#fff" font-size="21" font-weight="700">05  운영 검증과 환류</text>
+    <text x="57" y="596" fill="#d8ebe7" font-size="16">승격 기준 · 사람 승인 · 수락/수정/실패</text>
+  </g>
+</svg>

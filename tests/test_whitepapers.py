@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from xml.etree import ElementTree
 
 from scripts.render_whitepaper_markdown import render
 
@@ -18,6 +19,14 @@ def test_autoresearch_whitepaper_has_source_and_notional_caveat():
     assert all(1 <= page <= 22 for section in paper["sections"] for page in section["source_pages"])
     assert "가상" in paper["abstract"]
     assert "0.88" in render(paper) and "0.90" in render(paper)
+    companion = paper["companion"]
+    assert len(companion["diagrams"]) == 2
+    assert len(companion["tables"]) == 2
+    assert all((ROOT / "whitepapers" / "assets" / diagram["file"]).is_file() for diagram in companion["diagrams"])
+    for diagram in companion["diagrams"]:
+        ElementTree.parse(ROOT / "whitepapers" / "assets" / diagram["file"])
+    assert [row[-1] for row in companion["tables"][1]["rows"]] == ["미달", "미달", "미달", "통과"]
+    assert "가상" in companion["note"]
 
 
 def test_autoresearch_markdown_matches_structured_source():
