@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from palantir_news.archive import archive_path, rebuild_archives, render_article
+from palantir_news.archive import archive_path, mark_highlights, rebuild_archives, render_article
 from palantir_news.cli import apply_editorial_overrides, enrich_media, load_index, save_index, write_catalog
 
 
@@ -20,6 +20,17 @@ def sample_article():
             "importance": 7,
         },
     }
+
+
+def test_bold_terms_do_not_replace_yellow_highlights_or_escape_rules():
+    paragraph = "Security Forge는 검증합니다. Security Forge와 <보안>을 살핍니다."
+    rendered = mark_highlights(
+        paragraph, ["Security Forge는 검증합니다."], ["Security Forge", "<보안>"],
+    )
+    assert rendered == (
+        "<mark>Security Forge는 검증합니다.</mark> "
+        "<strong>Security Forge</strong>와 <strong>&lt;보안&gt;</strong>을 살핍니다."
+    )
 
 
 def test_archive_path_uses_year_month_and_day(tmp_path):

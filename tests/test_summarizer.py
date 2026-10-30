@@ -119,6 +119,16 @@ def test_normalize_newsletter_joins_model_closing_paragraphs():
     assert newsletter["closing"] == "확인된 부분은 자동화합니다. 남은 판단은 담당자가 검토해야 합니다."
 
 
+def test_normalize_newsletter_keeps_only_existing_bold_terms():
+    newsletter = {
+        "lead": ["Security Forge와 Apollo가 배포를 검증합니다."],
+        "sections": [], "closing": "검증 결과를 확인합니다.",
+        "bold_terms": ["Security Forge", "Apollo", "Security Forge", "없는 기능", "x"],
+    }
+    normalize_newsletter({}, newsletter)
+    assert newsletter["bold_terms"] == ["Security Forge", "Apollo"]
+
+
 def test_validate_newsletter_rejects_nonstring_closing():
     article = {"body": "short"}
     paragraph = "Palantir는 보안 설정을 확인하고 필요한 조치를 담당자에게 안내합니다."

@@ -60,6 +60,13 @@ def normalize_newsletter(article: dict[str, Any], newsletter: dict[str, Any]) ->
         if sentence not in selected:
             selected.append(sentence)
     newsletter["highlights"] = selected
+    requested_terms = newsletter.get("bold_terms")
+    text = " ".join(paragraph for paragraph in paragraphs if isinstance(paragraph, str))
+    newsletter["bold_terms"] = list(dict.fromkeys(
+        term.strip() for term in requested_terms
+        if isinstance(term, str) and 2 <= len(term.strip()) <= 50
+        and term.strip() in text
+    ))[:6] if isinstance(requested_terms, list) else []
 
 
 def validate_analysis(article: dict[str, Any], result: dict[str, Any]) -> None:
@@ -107,6 +114,13 @@ def validate_analysis(article: dict[str, Any], result: dict[str, Any]) -> None:
             for sentence in highlights
         ) or len(set(highlights)) != len(highlights):
             raise ValueError("Highlights must repeat 2-3 distinct sentences from the newsletter")
+        bold_terms = newsletter.get("bold_terms", [])
+        if not isinstance(bold_terms, list) or any(
+            not isinstance(term, str) or not 2 <= len(term) <= 50
+            or not any(term in paragraph for paragraph in paragraphs)
+            for term in bold_terms
+        ):
+            raise ValueError("Bold terms must appear verbatim in the newsletter")
         newsletter_length = sum(len(p) for p in lead) + sum(len(p) for section in sections for p in section["paragraphs"]) + len(newsletter["closing"])
         if body_length >= 1500 and newsletter_length < 800:
             raise ValueError("Newsletter is too thin for the available source article")
@@ -142,6 +156,7 @@ def build_prompt(article: dict[str, Any]) -> str:
 - 기술 용어 옆에는 쉬운 풀이를 붙이고, 메커니즘과 Palantir가 소개한 사례를 문단으로 연결한다. 목록만 나열하지 마라.
 - 마무리는 검증된 의미와 아직 확인되지 않은 범위를 구분한다. 근거 없이 미래 성과를 예언하지 마라.
 - 본문에서 노란색으로 강조할 핵심 문장 2~3개를 고른다. 별도의 상단 강조 목록은 만들지 않는다. 반드시 네가 쓴 도입·본문·마무리에 이미 등장한 완전한 문장을 글자 하나 바꾸지 말고 그대로 복사하라. 새로운 주장을 추가하지 마라.
+- 노란색 문장과 겹치지 않는 제품명·기술명·구현 개념 3~6개를 bold_terms로 고른다. 도입·본문·마무리에 실제 등장하는 짧은 표현을 글자 하나 바꾸지 말고 복사하라. 너무 일반적인 단어는 피하라.
 - Palantir 글이 인터뷰가 아니면 문답, 직접 인용, 가상의 인물을 만들지 마라. 글을 길게 번역하거나 베끼지 말고 독자적인 한국어 해설로 재구성하라.
 - 이미지의 내용을 보지 못했으므로 이미지를 해석하지 마라. source_heading은 아래 제공된 소제목과 정확히 일치할 때만 넣어라.
 
@@ -160,6 +175,7 @@ JSON 객체 하나만 반환하라:
     "dek": "기술 주제와 독자가 얻을 관점을 담은 한 문장 부제",
     "lead": ["문제나 장면을 보여주는 2~3문장", "핵심 질문과 Palantir의 발표 맥락을 알려주는 2~3문장"],
     "highlights": ["도입이나 본문에서 그대로 복사한 핵심 문장 1", "본문에서 그대로 복사한 핵심 문장 2"],
+    "bold_terms": ["하이라이트 문장 밖에 있는 실제 제품명 또는 기술 용어 1", "핵심 구현 용어 2", "중요한 수치나 개념 3"],
     "sections": [
       {{"heading": "내용이 드러나는 구체적 소제목", "source_heading": "제공된 소제목과 일치하는 값 또는 빈 문자열", "paragraphs": ["Palantir 발표에 근거한 2~3문장", "작동 방식이나 사례를 풀어주는 2~3문장"]}}
     ],

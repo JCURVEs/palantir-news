@@ -15,18 +15,23 @@ def archive_path(root: Path, published_at: str) -> Path:
     return root / str(published.year) / f"{published.month:02d}월" / f"{published:%Y-%m-%d}.md"
 
 
-def mark_highlights(paragraph: str, highlights: list[str]) -> str:
+def mark_highlights(paragraph: str, highlights: list[str], bold_terms: list[str] | None = None) -> str:
     matches = []
     for sentence in highlights:
         for match in re.finditer(re.escape(sentence), paragraph):
-            matches.append((match.start(), match.end()))
-    matches.sort(key=lambda item: (item[0], -item[1]))
+            matches.append((match.start(), match.end(), "mark"))
+    marked = [(start, end) for start, end, _ in matches]
+    for term in bold_terms or []:
+        for match in re.finditer(re.escape(term), paragraph):
+            if not any(match.start() < end and match.end() > start for start, end in marked):
+                matches.append((match.start(), match.end(), "strong"))
+    matches.sort(key=lambda item: (item[0], item[2] != "mark", -item[1]))
     parts = []
     cursor = 0
-    for start, end in matches:
+    for start, end, kind in matches:
         if start < cursor:
             continue
-        parts.extend((escape(paragraph[cursor:start], quote=False), f"<mark>{escape(paragraph[start:end], quote=False)}</mark>"))
+        parts.extend((escape(paragraph[cursor:start], quote=False), f"<{kind}>{escape(paragraph[start:end], quote=False)}</{kind}>"))
         cursor = end
     parts.append(escape(paragraph[cursor:], quote=False))
     return "".join(parts)
@@ -67,15 +72,16 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
     product_media = article.get("related_media") or []
     if newsletter:
         highlights = newsletter.get("highlights") or []
+        bold_terms = newsletter.get("bold_terms") or []
         lines.extend([f"*{newsletter['dek']}*", ""])
         for paragraph in newsletter["lead"]:
-            lines.extend([mark_highlights(paragraph, highlights), ""])
+            lines.extend([mark_highlights(paragraph, highlights, bold_terms), ""])
         if article.get("image_url"):
             lines.extend([f"![Palantir 대표 이미지]({article['image_url']})", ""])
         for section in newsletter["sections"]:
             lines.extend([f"### {section['heading']}", ""])
             for paragraph in section["paragraphs"]:
-                lines.extend([mark_highlights(paragraph, highlights), ""])
+                lines.extend([mark_highlights(paragraph, highlights, bold_terms), ""])
             for index, image in enumerate(images):
                 if index in used_images or not section.get("source_heading") or image.get("section") != section["source_heading"]:
                     continue
@@ -96,7 +102,7 @@ def render_article(article: dict[str, Any], collected_on: str) -> str:
         closing = newsletter["closing"]
         if isinstance(closing, list):
             closing = " ".join(part for part in closing if isinstance(part, str))
-        lines.extend(["### 정리하면", "", mark_highlights(closing, highlights), ""])
+        lines.extend(["### 정리하면", "", mark_highlights(closing, highlights, bold_terms), ""])
     else:
         lines.extend(["**요약:**  ", str(analysis["summary"]), ""])
         if analysis.get("key_points"):
