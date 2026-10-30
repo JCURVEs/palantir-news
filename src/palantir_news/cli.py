@@ -20,6 +20,7 @@ from .collector import (
     build_session,
     fetch_article,
     fetch_feed_bodies,
+    fetch_publication_feed,
     fetch_reader_text,
     fetch_sitemap,
     has_readable_body,
@@ -234,7 +235,10 @@ def enrich_linked_media(
     return enriched, failures
 
 
-def select_pending(records: dict[str, dict[str, Any]], limit: int, feed_ids: set[str] | None = None) -> list[dict[str, Any]]:
+def select_pending(
+    records: dict[str, dict[str, Any]], limit: int, feed_ids: set[str] | None = None,
+    recent_only: bool = False,
+) -> list[dict[str, Any]]:
     pending = [
         item for item in records.values()
         if item.get("newsletter_source") != "curated"
@@ -242,22 +246,27 @@ def select_pending(records: dict[str, dict[str, Any]], limit: int, feed_ids: set
              or item.get("analysis_version", 0) < ANALYSIS_VERSION)
     ]
     recent_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    if recent_only:
+        pending = [item for item in pending if item.get("analysis_status") != "complete"
+                   and datetime.fromisoformat(item["published_at"].replace("Z", "+00:00")) >= recent_cutoff]
 
     def priority(item: dict[str, Any]) -> tuple[int, float]:
         status = item.get("analysis_status")
         published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00"))
         newest_first = -published.timestamp()
-        if item["id"] in (feed_ids or set()):
-            return (0 if item.get("analysis_error") else -1, newest_first)
         if status != "complete":
             if status != "failed" and published >= recent_cutoff:
                 return (0, newest_first)
-            return (2 if status != "failed" else 4, newest_first)
+            if status != "failed":
+                return (1 if item["id"] in (feed_ids or set()) else 2, newest_first)
+            if item["id"] in (feed_ids or set()):
+                return (2, newest_first)
+            return (6, newest_first)
         if item.get("analysis_error"):
             return (5, newest_first)
         summary = str((item.get("analysis") or {}).get("summary", ""))
         needs_review = len(summary) < 180 or any(phrase in summary for phrase in REVIEW_PHRASES)
-        return (1 if needs_review else 3, newest_first)
+        return (3 if needs_review else 4, newest_first)
 
     pending.sort(key=priority)
     return pending[:limit] if limit > 0 else pending
@@ -343,6 +352,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--end-year", type=int, default=2026)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--analysis-limit", type=int, default=0, help="Maximum pending posts to analyze; 0 means all")
+    parser.add_argument("--recent-only", action="store_true", help="Analyze only newly published posts from the last seven days")
     parser.add_argument("--analysis-pause-seconds", type=float, default=0, help="Pause between analysis requests")
     parser.add_argument("--article-id", help="Analyze one existing article ID, including a previously completed post")
     parser.add_argument("--collect-only", action="store_true")
@@ -371,7 +381,24 @@ def main() -> int:
         ignored_urls = {line.strip() for line in ignored_path.read_text(encoding="utf-8").splitlines() if line.strip()}
 
     workers = max(1, min(args.workers, 8))
-    urls = [] if args.media_only or args.linked_media_only else [url for url in fetch_sitemap() if url not in ignored_urls]
+    feed_articles = []
+    if not args.media_only and not args.linked_media_only:
+        try:
+            feed_articles = fetch_publication_feed()
+        except Exception as exc:
+            print(f"::warning::Official publication RSS fetch failed: {type(exc).__name__}: {exc}")
+    new_feed = 0
+    for article in feed_articles:
+        if article["id"] not in records and article["url"] not in ignored_urls:
+            records[article["id"]] = article
+            new_feed += 1
+    print(f"Official RSS new posts: {new_feed}")
+    urls = []
+    if not args.media_only and not args.linked_media_only:
+        try:
+            urls = [url for url in fetch_sitemap() if url not in ignored_urls]
+        except Exception as exc:
+            print(f"::warning::Official sitemap fetch failed: {type(exc).__name__}: {exc}")
     collected, failures = collect_missing(urls, records, workers)
     for article in collected:
         year = publication_year(article)
@@ -399,7 +426,7 @@ def main() -> int:
     if not args.collect_only and not args.media_only:
         try:
             tag_path = root / "data" / "feed_tags.txt"
-            tags = [line.strip() for line in tag_path.read_text(encoding="utf-8").splitlines() if line.strip()] if tag_path.exists() else []
+            tags = [line.strip() for line in tag_path.read_text(encoding="utf-8").splitlines() if line.strip()] if tag_path.exists() and not args.recent_only else []
             feed_bodies = fetch_feed_bodies(build_session(), tags[datetime.now(timezone.utc).hour % 3::3])
         except Exception as exc:
             print(f"::warning::Official RSS body fetch failed: {type(exc).__name__}: {exc}")
@@ -412,7 +439,7 @@ def main() -> int:
             raise SystemExit(f"Article not found in index: {args.article_id}")
         pending = [records[args.article_id]]
     else:
-        pending = select_pending(records, args.analysis_limit, set(feed_bodies) | cache_ids)
+        pending = select_pending(records, args.analysis_limit, set(feed_bodies) | cache_ids, args.recent_only)
 
     if args.linked_media_limit > 0:
         enriched, media_failures = enrich_linked_media(records, index_path, feed_bodies, root, args.linked_media_limit, args.article_id)

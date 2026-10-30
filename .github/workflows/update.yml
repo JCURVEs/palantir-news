@@ -8,8 +8,10 @@ on:
       - 'data/editorials/**'
       - '.github/workflows/update.yml'
   schedule:
-    # 04:30-09:30 KST, six batches per day
+    # Historical newsletter batches, 04:30-09:30 KST
     - cron: '30 0,19-23 * * *'
+    # Fresh-post radar every three hours, at :15 UTC
+    - cron: '15 */3 * * *'
   workflow_dispatch:
     inputs:
       analysis_limit:
@@ -43,12 +45,17 @@ jobs:
           GROQ_MODEL: ${{ vars.GROQ_MODEL || 'qwen/qwen3.8-27b' }}
           ANALYSIS_LIMIT: ${{ github.event_name == 'push' && '1' || inputs.analysis_limit || '5' }}
           ARTICLE_ID: ${{ inputs.article_id || '' }}
+          RADAR_RUN: ${{ github.event.schedule == '15 */3 * * *' }}
         run: |
           if ! [[ "$ANALYSIS_LIMIT" =~ ^[1-5]$ ]]; then
             echo "analysis_limit must be between 1 and 5" >&2
             exit 1
           fi
-          args=(--start-year 2020 --end-year 2026 --analysis-limit "$ANALYSIS_LIMIT" --analysis-pause-seconds 60 --media-limit 20 --linked-media-limit 3)
+          if [ "$RADAR_RUN" = "true" ]; then
+            args=(--start-year 2020 --end-year 2026 --analysis-limit 1 --recent-only)
+          else
+            args=(--start-year 2020 --end-year 2026 --analysis-limit "$ANALYSIS_LIMIT" --analysis-pause-seconds 60 --media-limit 20 --linked-media-limit 3)
+          fi
           if [ -n "$ARTICLE_ID" ]; then
             if ! [[ "$ARTICLE_ID" =~ ^[0-9a-f]{12}$ ]]; then
               echo "article_id must be a 12-character Medium ID" >&2

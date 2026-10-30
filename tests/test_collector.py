@@ -6,6 +6,7 @@ from palantir_news.collector import (
     has_readable_body,
     normalize_url,
     parse_article_html,
+    parse_publication_feed,
     parse_medium_json,
     parse_sitemap,
 )
@@ -19,6 +20,24 @@ def test_parse_sitemap_keeps_only_articles_and_deduplicates():
       <url><loc>https://blog.palantir.com/example-post-abcdef123456</loc></url>
     </urlset>"""
     assert parse_sitemap(xml) == ["https://blog.palantir.com/example-post-abcdef123456"]
+
+
+def test_publication_feed_recovers_new_post_when_article_page_is_blocked():
+    xml = b'''<rss xmlns:content="http://purl.org/rss/1.0/modules/content/">
+    <channel><item><title>New official post</title>
+    <link>https://blog.palantir.com/new-post-abcdef123456?source=rss</link>
+    <pubDate>Fri, 30 Oct 2026 02:00:00 GMT</pubDate>
+    <content:encoded><![CDATA[<h2>How it works</h2><figure><img src="https://cdn-images-1.medium.com/max/1024/1*diagram.png"></figure>
+    <p>Palantir explains the mechanism. ''' + b"Detail " * 45 + b'''</p>]]></content:encoded>
+    </item><item><title>Not official</title><link>https://evil.example/post-123456abcdef</link>
+    <pubDate>Fri, 30 Oct 2026 02:00:00 GMT</pubDate></item></channel></rss>'''
+    articles = parse_publication_feed(xml)
+    assert len(articles) == 1
+    assert articles[0]["id"] == "abcdef123456"
+    assert articles[0]["published_at"] == "2026-10-30T02:00:00Z"
+    assert articles[0]["source_headings"] == ["How it works"]
+    assert articles[0]["image_url"].startswith("https://miro.medium.com/")
+    assert articles[0]["analysis_status"] == "pending"
 
 
 def test_official_feed_supplies_recent_article_body_and_headings():

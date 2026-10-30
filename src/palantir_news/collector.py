@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Iterable
 from urllib.parse import quote, urlsplit, urlunsplit
 from xml.etree import ElementTree
@@ -101,6 +102,55 @@ def fetch_sitemap(session: requests.Session | None = None) -> list[str]:
     response = client.get(SITEMAP_URL, timeout=30)
     response.raise_for_status()
     return parse_sitemap(response.content)
+
+
+def parse_publication_feed(xml_content: bytes | str) -> list[dict[str, Any]]:
+    """Create article records from the official RSS when Medium blocks article pages."""
+    root = ElementTree.fromstring(xml_content)
+    content_tag = "{http://purl.org/rss/1.0/modules/content/}encoded"
+    articles = []
+    seen = set()
+    for item in root.findall("./channel/item"):
+        url = normalize_url(item.findtext("link") or "")
+        article_id = article_id_from_url(url)
+        if urlsplit(url).netloc != "blog.palantir.com" or not article_id or article_id in seen:
+            continue
+        try:
+            published = parsedate_to_datetime(item.findtext("pubDate") or "").astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        soup = BeautifulSoup(item.findtext(content_tag) or "", "html.parser")
+        for image in soup.find_all("img"):
+            source = str(image.get("src") or "")
+            parts = urlsplit(source)
+            if parts.scheme == "https" and parts.netloc.startswith("cdn-images-") and parts.netloc.endswith(".medium.com"):
+                image["src"] = _medium_image_url(parts.path.rsplit("/", 1)[-1])
+        body = _clean_text(soup.get_text(" ", strip=True))
+        if not has_readable_body(body):
+            continue
+        cover = next((str(image.get("src")) for image in soup.find_all("img")
+                      if urlsplit(str(image.get("src") or "")).netloc == "miro.medium.com"), "")
+        title = _clean_text(item.findtext("title") or "")
+        if not title:
+            continue
+        articles.append({
+            "id": article_id, "url": url, "title": title, "description": body[:300],
+            "published_at": published.isoformat().replace("+00:00", "Z"),
+            "modified_at": "", "author": _clean_text(item.findtext("{http://purl.org/dc/elements/1.1/}creator") or "Palantir"),
+            "image_url": cover, "inline_images": _html_inline_images(soup, cover),
+            "related_links": official_links_from_html(soup),
+            "source_headings": [_clean_text(node.get_text(" ", strip=True)) for node in soup.find_all(["h2", "h3"])],
+            "body": body, "analysis": None, "analysis_status": "pending",
+        })
+        seen.add(article_id)
+    return articles
+
+
+def fetch_publication_feed(session: requests.Session | None = None) -> list[dict[str, Any]]:
+    client = session or build_session()
+    response = client.get(FEED_URL, timeout=30)
+    response.raise_for_status()
+    return parse_publication_feed(response.content)
 
 
 def _json_ld_objects(soup: BeautifulSoup) -> Iterable[dict[str, Any]]:

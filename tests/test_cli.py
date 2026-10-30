@@ -58,7 +58,17 @@ def test_select_pending_prioritizes_recent_and_thin_published_summaries():
     older = article("older", "2022-01-01T00:00:00Z")
     records = {item["id"]: item for item in (older, thin, recent)}
 
-    assert [item["id"] for item in cli.select_pending(records, 3)] == ["recent", "thin", "older"]
+    assert [item["id"] for item in cli.select_pending(records, 3)] == ["recent", "older", "thin"]
+
+
+def test_radar_only_selects_recent_unanalyzed_posts():
+    recent = article("recent", datetime.now(timezone.utc).isoformat())
+    older = article("older", "2026-01-01T00:00:00Z")
+    legacy = article("legacy", datetime.now(timezone.utc).isoformat(), "complete")
+    legacy.pop("analysis_version")
+    assert [item["id"] for item in cli.select_pending(
+        {item["id"]: item for item in (older, legacy, recent)}, 5, recent_only=True,
+    )] == ["recent"]
 
 
 def test_select_pending_works_from_newest_historical_post():

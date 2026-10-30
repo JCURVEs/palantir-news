@@ -1,9 +1,10 @@
 # Palantir Blog Catalog
 
-Official posts indexed: **287**
+Official posts indexed: **288**
 
-## 2026 (23)
+## 2026 (24)
 
+- 2026-10-02 [Early Talent Hiring at Palantir](https://blog.palantir.com/early-talent-hiring-at-palantir-c7388f1fdab7)
 - 2026-08-20 [Securing Software at the Speed of AI](https://blog.palantir.com/securing-software-at-the-speed-of-ai-0b1d7ddd2bf0)
 - 2026-07-27 [AI Sovereignty is Your Alpha: How to Avoid Transferring Your Alpha to a Hosted Model Provider](https://blog.palantir.com/ai-sovereignty-is-your-alpha-how-to-avoid-transferring-your-alpha-to-a-hosted-model-provider-774a1b35bf98)
 - 2026-06-08 [Managing Elasticsearch Reindex at Scale: Performance, Reliability, and Observability](https://blog.palantir.com/managing-elasticsearch-reindex-at-scale-performance-reliability-and-observability-cf948d0efd47)
