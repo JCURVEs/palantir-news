@@ -6,6 +6,15 @@ Palantir News는 팔란티어의 공식 발표와 엔지니어링 글에서 기�
 
 **[Palantir News 사이트에서 읽기](https://palantir-news-jcurves.ysinter.chatgpt.site/)**
 
+## 직무별 읽기
+
+- [Delta / Forward Deployed Software Engineer](https://palantir-news-jcurves.ysinter.chatgpt.site/course.html?track=delta): 고객 문제를 작동하는 시스템으로
+- [Echo / Deployment Strategist](https://palantir-news-jcurves.ysinter.chatgpt.site/course.html?track=echo): 중요한 문제를 찾아 업무 변화로
+- [Product Designer](https://palantir-news-jcurves.ysinter.chatgpt.site/course.html?track=design): 복잡한 운영을 이해 가능한 화면으로
+- [Platform Engineer](https://palantir-news-jcurves.ysinter.chatgpt.site/course.html?track=platform): 배포 이후에도 믿고 쓸 수 있게
+
+[GitHub에서 코스 전체 순서 보기](READING_COURSES.md)
+
 ## 백서 깊이 읽기
 
 - [AutoResearch와 파인튜닝 온톨로지](whitepapers/autoresearch.md): 데이터셋·기법·모델을 잇는 학습 체계, CNC 가상 사례, 평가 수치의 한계를 긴 글로 해설합니다. [사이트에서 읽기](https://palantir-news-jcurves.ysinter.chatgpt.site/whitepaper.html?paper=autoresearch)
