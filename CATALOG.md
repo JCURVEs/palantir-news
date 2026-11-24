@@ -1,9 +1,10 @@
 # Palantir Blog Catalog
 
-Official posts indexed: **288**
+Official posts indexed: **289**
 
-## 2026 (24)
+## 2026 (25)
 
+- 2026-11-24 [Zrozumieć Palantir: fakty i mity](https://blog.palantir.com/zrozumie%C4%87-palantir-fakty-i-mity-afa49bcfb8ab)
 - 2026-10-02 [Early Talent Hiring at Palantir](https://blog.palantir.com/early-talent-hiring-at-palantir-c7388f1fdab7)
 - 2026-08-20 [Securing Software at the Speed of AI](https://blog.palantir.com/securing-software-at-the-speed-of-ai-0b1d7ddd2bf0)
 - 2026-07-27 [AI Sovereignty is Your Alpha: How to Avoid Transferring Your Alpha to a Hosted Model Provider](https://blog.palantir.com/ai-sovereignty-is-your-alpha-how-to-avoid-transferring-your-alpha-to-a-hosted-model-provider-774a1b35bf98)
